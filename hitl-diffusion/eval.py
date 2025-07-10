@@ -13,7 +13,7 @@ import torch
 import dill
 from omegaconf import OmegaConf
 import pathlib
-from train import TrainDP3Workspace
+from train import TrainHITLWorkspace
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
     
@@ -24,7 +24,7 @@ OmegaConf.register_new_resolver("eval", eval, replace=True)
         'diffusion_policy_3d', 'config'))
 )
 def main(cfg):
-    workspace = TrainDP3Workspace(cfg)
+    workspace = TrainHITLWorkspace(cfg)
     workspace.eval()
 
 if __name__ == "__main__":

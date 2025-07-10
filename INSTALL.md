@@ -15,9 +15,9 @@ First, git clone this repo and `cd` into it.
 
 1.create python/pytorch env
 
-    conda remove -n dp3 --all
-    conda create -n dp3 python=3.8
-    conda activate dp3
+    conda remove -n hitl --all
+    conda create -n hitl python=3.8
+    conda activate hitl
 
 
 ---
@@ -31,9 +31,9 @@ First, git clone this repo and `cd` into it.
 
 ---
 
-3.install dp3
+3.install hitl
 
-    cd 3D-Diffusion-Policy && pip install -e . && cd ..
+    cd hitl-diffusion && pip install -e . && cd ..
 
 
 ---

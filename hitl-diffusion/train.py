@@ -24,7 +24,7 @@ import shutil
 import time
 import threading
 from hydra.core.hydra_config import HydraConfig
-from diffusion_policy_3d.policy.dp3 import DP3
+from diffusion_policy_3d.policy.hitl import HITL
 from diffusion_policy_3d.dataset.base_dataset import BaseDataset
 from diffusion_policy_3d.env_runner.base_runner import BaseRunner
 from diffusion_policy_3d.common.checkpoint_util import TopKCheckpointManager
@@ -34,7 +34,7 @@ from diffusion_policy_3d.model.common.lr_scheduler import get_scheduler
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
 
-class TrainDP3Workspace:
+class TrainHITLWorkspace:
     include_keys = ['global_step', 'epoch']
     exclude_keys = tuple()
 
@@ -50,9 +50,9 @@ class TrainDP3Workspace:
         random.seed(seed)
 
         # configure model
-        self.model: DP3 = hydra.utils.instantiate(cfg.policy)
+        self.model: HITL = hydra.utils.instantiate(cfg.policy)
 
-        self.ema_model: DP3 = None
+        self.ema_model: HITL = None
         if cfg.training.use_ema:
             try:
                 self.ema_model = copy.deepcopy(self.model)
@@ -130,17 +130,21 @@ class TrainDP3Workspace:
         if cfg.training.use_ema:
             ema = hydra.utils.instantiate(
                 cfg.ema,
-                model=self.ema_model)
+                model=self.ema_model
+            )
 
         # configure env
+        # For hitl task this is null because we dont use any simulation
         env_runner: BaseRunner
         env_runner = hydra.utils.instantiate(
             cfg.task.env_runner,
-            output_dir=self.output_dir)
+            output_dir=self.output_dir
+        ) 
 
         if env_runner is not None:
             assert isinstance(env_runner, BaseRunner)
         
+        # configure wandb and logging
         cfg.logging.name = str(cfg.logging.name)
         cprint("-----------------------------", "yellow")
         cprint(f"[WandB] group: {cfg.logging.group}", "yellow")
@@ -251,6 +255,7 @@ class TrainDP3Workspace:
             policy.eval()
 
             # run rollout
+            # Dependent on there being a simulation environment
             if (self.epoch % cfg.training.rollout_every) == 0 and RUN_ROLLOUT and env_runner is not None:
                 t3 = time.time()
                 # runner_log = env_runner.run(policy, dataset=dataset)
@@ -261,7 +266,6 @@ class TrainDP3Workspace:
                 step_log.update(runner_log)
 
             
-                
             # run validation
             if (self.epoch % cfg.training.val_every) == 0 and RUN_VALIDATION:
                 with torch.no_grad():
@@ -299,6 +303,7 @@ class TrainDP3Workspace:
                     del pred_action
                     del mse
 
+            # No simulation environment
             if env_runner is None:
                 step_log['test_mean_score'] = - train_loss
                 
@@ -344,10 +349,12 @@ class TrainDP3Workspace:
             self.load_checkpoint(path=lastest_ckpt_path)
         
         # configure env
+        # Null because there is no simulation environment for the hitl task
         env_runner: BaseRunner
         env_runner = hydra.utils.instantiate(
             cfg.task.env_runner,
-            output_dir=self.output_dir)
+            output_dir=self.output_dir
+        )
         assert isinstance(env_runner, BaseRunner)
         policy = self.model
         if cfg.training.use_ema:
@@ -355,13 +362,14 @@ class TrainDP3Workspace:
         policy.eval()
         policy.cuda()
 
-        runner_log = env_runner.run(policy)
+        # Dependent on there being a simulation environment
+        if env_runner is not None:
+            runner_log = env_runner.run(policy)
         
-      
-        cprint(f"---------------- Eval Results --------------", 'magenta')
-        for key, value in runner_log.items():
-            if isinstance(value, float):
-                cprint(f"{key}: {value:.4f}", 'magenta')
+            cprint(f"---------------- Eval Results --------------", 'magenta')
+            for key, value in runner_log.items():
+                if isinstance(value, float):
+                    cprint(f"{key}: {value:.4f}", 'magenta')
         
     @property
     def output_dir(self):
@@ -499,7 +507,7 @@ class TrainDP3Workspace:
         'diffusion_policy_3d', 'config'))
 )
 def main(cfg):
-    workspace = TrainDP3Workspace(cfg)
+    workspace = TrainHITLWorkspace(cfg)
     workspace.run()
 
 if __name__ == "__main__":
