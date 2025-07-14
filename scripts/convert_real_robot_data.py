@@ -84,8 +84,8 @@ def preproces_image(image):
 
 
 
-expert_data_path = '/home/zhanggu/3D-Diffusion-Policy/3D-Diffusion-Policy/data/realdex_roll'
-save_data_path = '/home/zhanggu/3D-Diffusion-Policy/3D-Diffusion-Policy/data/realdex_roll.zarr'
+expert_data_path = '/home/rzilka/hitl-diffusion/hitl-diffusion/data/hitl_block'
+save_data_path = '/home/rzilka/hitl-diffusion/hitl-diffusion/data/hitl_block.zarr'
 demo_dirs = [os.path.join(expert_data_path, d, 'data.pkl') for d in os.listdir(expert_data_path) if os.path.isdir(os.path.join(expert_data_path, d))]
 
 # storage
