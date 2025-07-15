@@ -12,6 +12,7 @@ video_dataset/
 expert_ckpt/
 demonstrations/
 vrl3data/
+vrl3_ckpts/
 trajectory_images/
 dexdeform_flip_traj.pkl
 dexdeform_folding_traj.pkl
