@@ -5,11 +5,8 @@ import plotly.io as pio
 import matplotlib.cm as cm
 from termcolor import cprint
 import os
-
-
-def visualize_pointcloud(pointcloud, color:tuple=None):
-    vis = Visualizer()
-    vis.visualize_pointcloud(pointcloud, color=color)
+# import torch
+# import pytorch3d.ops as torch3d_ops
     
 class Visualizer:
     def __init__(self):
@@ -71,6 +68,22 @@ class Visualizer:
         else:
             colors = ['rgb({},{},{})'.format(int(r), int(g), int(b)) for r, g, b in pointcloud[:, 3:6]]
         return colors
+
+    
+    def farthest_point_sampling(self, points, num_points=1024, use_cuda=True):
+        K = [num_points]
+        if use_cuda:
+            points = torch.from_numpy(points).cuda()
+            sampled_points, indices = torch3d_ops.sample_farthest_points(points=points.unsqueeze(0), K=K)
+            sampled_points = sampled_points.squeeze(0)
+            sampled_points = sampled_points.cpu().numpy()
+        else:
+            points = torch.from_numpy(points)
+            sampled_points, indices = torch3d_ops.sample_farthest_points(points=points.unsqueeze(0), K=K)
+            sampled_points = sampled_points.squeeze(0)
+            sampled_points = sampled_points.numpy()
+
+        return sampled_points, indices
     
 
     def visualize_pointcloud(self, pointcloud, color:tuple=None):
@@ -175,3 +188,30 @@ class Visualizer:
             file.write(fig_html)
         print(f"Visualization saved to {file_path}")
     
+
+if __name__ == "__main__":
+
+    pc = np.load('data/wrist_depth.npy')
+    # pc = np.load('data/back_depth.npy')
+    # pc = pc.item()
+    pc = pc[...,:3]
+        
+    vis = Visualizer()
+
+    # WORK_SPACE = [
+    #     [-20, 20],
+    #     [-20, 20],
+    #     [0, 2]
+    # ]
+
+    # # crop
+    # pc = pc[np.where((pc[..., 0] > WORK_SPACE[0][0]) & (pc[..., 0] < WORK_SPACE[0][1]) &
+    #                             (pc[..., 1] > WORK_SPACE[1][0]) & (pc[..., 1] < WORK_SPACE[1][1]) &
+    #                             (pc[..., 2] > WORK_SPACE[2][0]) & (pc[..., 2] < WORK_SPACE[2][1]))]
+
+    # print(type(pc))
+
+    # pc = vis.farthest_point_sampling(pc, use_cuda=False)
+
+    color:tuple=None
+    vis.visualize_pointcloud(pc, color=color)
