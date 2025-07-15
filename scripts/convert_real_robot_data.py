@@ -84,15 +84,18 @@ def preproces_image(image):
 
 
 
-expert_data_path = '/home/rzilka/hitl-diffusion/hitl-diffusion/data/hitl_block'
+expert_data_path = '/home/rzilka/hitl-diffusion/data/bowl/0'
 save_data_path = '/home/rzilka/hitl-diffusion/hitl-diffusion/data/hitl_block.zarr'
-demo_dirs = [os.path.join(expert_data_path, d, 'data.pkl') for d in os.listdir(expert_data_path) if os.path.isdir(os.path.join(expert_data_path, d))]
+dirs = os.listdir(expert_data_path)
+dirs = sorted([int(d) for d in dirs])
+
+demo_dirs = [os.path.join(expert_data_path, str(d)) for d in dirs if os.path.isdir(os.path.join(expert_data_path, str(d)))]
 
 # storage
 total_count = 0
-img_arrays = []
+# img_arrays = []
 point_cloud_arrays = []
-depth_arrays = []
+# depth_arrays = []
 state_arrays = []
 action_arrays = []
 episode_ends_arrays = []
@@ -111,38 +114,32 @@ if os.path.exists(save_data_path):
         exit()
 os.makedirs(save_data_path, exist_ok=True)
 
-    
 
 for demo_dir in demo_dirs:
-    dir_name = os.path.dirname(demo_dir)
-
     cprint('Processing {}'.format(demo_dir), 'green')
-    with open(demo_dir, 'rb') as f:
-        demo = pickle.load(f)
-
-    pcd_dirs = os.path.join(dir_name, 'pcd')
-    if not os.path.exists(pcd_dirs):
-           os.makedirs(pcd_dirs)
         
-    demo_length = len(demo['point_cloud'])
+    demo_length = len(demo_dirs)
     # dict_keys(['point_cloud', 'rgbd', 'agent_pos', 'action'])
     for step_idx in tqdm.tqdm(range(demo_length)):
        
         total_count += 1
-        obs_image = demo['image'][step_idx]
-        obs_depth = demo['depth'][step_idx]
-        obs_image = preproces_image(obs_image)
-        obs_depth = preproces_image(np.expand_dims(obs_depth, axis=-1)).squeeze(-1)
-        obs_pointcloud = demo['point_cloud'][step_idx]
+        # obs_image = demo['image'][step_idx]
+        # obs_depth = demo['depth'][step_idx]
+        # obs_image = preproces_image(obs_image)
+        # obs_depth = preproces_image(np.expand_dims(obs_depth, axis=-1)).squeeze(-1)
+        
+        # obs_pointcloud = demo['point_cloud'][step_idx]
         robot_state = demo['agent_pos'][step_idx]
         action = demo['action'][step_idx]
-    
-        
+
+        obs_pointcloud = np.load(os.path.join(demo_dir, '/back_depth.npy'))
         obs_pointcloud = preprocess_point_cloud(obs_pointcloud, use_cuda=True)
-        img_arrays.append(obs_image)
+        # wrist_depth = np.load(os.path.join(demo_dir, '/wrist_depth.npy'))
+
+        # img_arrays.append(obs_image)
         action_arrays.append(action)
         point_cloud_arrays.append(obs_pointcloud)
-        depth_arrays.append(obs_depth)
+        # depth_arrays.append(obs_depth)
         state_arrays.append(robot_state)
     
     episode_ends_arrays.append(total_count)

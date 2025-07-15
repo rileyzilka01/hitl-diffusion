@@ -5,8 +5,8 @@ import plotly.io as pio
 import matplotlib.cm as cm
 from termcolor import cprint
 import os
-# import torch
-# import pytorch3d.ops as torch3d_ops
+import torch
+import pytorch3d.ops as torch3d_ops
     
 class Visualizer:
     def __init__(self):
@@ -92,39 +92,65 @@ class Visualizer:
         fig = go.Figure(data=[trace], layout=layout)
         
         fig.update_layout(
-            
             scene=dict(
-                # aspectmode='cube', 
-                xaxis=dict(
-                    showbackground=False,  # 隐藏背景网格
-                    showgrid=True,        # 隐藏网格
-                    showline=True,         # 显示轴线
-                    linecolor='grey',      # 设置轴线颜色为灰色
-                    zerolinecolor='grey',  # 设置0线颜色为灰色
-                    zeroline=False,        # 关闭0线
-                    gridcolor='grey',      # 设置网格颜色为灰色
-                    
-                ),
-                yaxis=dict(
-                    showbackground=False,
-                    showgrid=True,
-                    showline=True,
-                    linecolor='grey',
-                    zerolinecolor='grey',
-                    zeroline=False,        # 关闭0线
-                    gridcolor='grey',      # 设置网格颜色为灰色
-                ),
-                zaxis=dict(
-                    showbackground=False,
-                    showgrid=True,
-                    showline=True,
-                    linecolor='grey',
-                    zerolinecolor='grey',
-                    zeroline=False,        # 关闭0线
-                    gridcolor='grey',      # 设置网格颜色为灰色
-                ),
-                bgcolor='white'  # 设置背景色为白色
+                xaxis=dict(showbackground=False, showgrid=True, showline=True, linecolor='grey', zerolinecolor='grey', zeroline=False, gridcolor='grey'),
+                yaxis=dict(showbackground=False, showgrid=True, showline=True, linecolor='grey', zerolinecolor='grey', zeroline=False, gridcolor='grey'),
+                zaxis=dict(showbackground=False, showgrid=True, showline=True, linecolor='grey', zerolinecolor='grey', zeroline=False, gridcolor='grey'),
+                bgcolor='white',
             )
+        )
+        div = pio.to_html(fig, full_html=False)
+
+        @self.app.route('/')
+        def index():
+            return render_template_string('''<div>{{ div|safe }}</div>''', div=div)
+        
+        self.app.run(debug=True, use_reloader=False)
+
+    def visualize_pointclouds(self, pointclouds, color:tuple=None):
+        all_frames = []
+        first_trace = None
+
+        for i, pointcloud in enumerate(pointclouds):
+            print(f"Pointcloud {i}")
+            trace = self._generate_trace(pointcloud, color=color, size=6, opacity=1.0)
+
+            if i == 0:
+                first_trace = trace
+
+            all_frames.append(go.Frame(data=[trace], name=str(i)))
+
+        layout = go.Layout(margin=dict(l=0, r=0, b=0, t=0))
+        fig = go.Figure(data=[trace], layout=layout, frames=all_frames)
+
+        camera = dict(
+            eye=dict(x=1.25, y=1.25, z=1.25)  # Or adjust as needed
+        )
+
+        # Create animated figure
+        fig.update_layout(
+            scene=dict(
+                xaxis=dict(showbackground=False, showgrid=True, showline=True, linecolor='grey', zerolinecolor='grey', zeroline=False, gridcolor='grey'),
+                yaxis=dict(showbackground=False, showgrid=True, showline=True, linecolor='grey', zerolinecolor='grey', zeroline=False, gridcolor='grey'),
+                zaxis=dict(showbackground=False, showgrid=True, showline=True, linecolor='grey', zerolinecolor='grey', zeroline=False, gridcolor='grey'),
+                bgcolor='white',
+                camera=camera
+            ),
+            updatemenus=[dict(
+                type="buttons",
+                showactive=False,
+                buttons=[dict(
+                    label="Play",
+                    method="animate",
+                    args=[None, {
+                        "frame": {"duration": 500, "redraw": False},
+                        "transition": {"duration": 0},
+                        "fromcurrent": True,
+                        "mode": "immediate",
+                        "loop": True
+                    }]
+                )]
+            )]
         )
         div = pio.to_html(fig, full_html=False)
 
@@ -189,29 +215,72 @@ class Visualizer:
         print(f"Visualization saved to {file_path}")
     
 
-if __name__ == "__main__":
+def plot_sequence():
+    expert_data_path = '/home/rzilka/hitl-diffusion/data/bowl/0'
+    dirs = os.listdir(expert_data_path)
+    dirs = sorted([int(d) for d in dirs])
 
-    pc = np.load('data/wrist_depth.npy')
-    # pc = np.load('data/back_depth.npy')
-    # pc = pc.item()
-    pc = pc[...,:3]
+    pc_paths = [os.path.join(expert_data_path, str(d), 'back_depth.npy') for d in dirs if os.path.isdir(os.path.join(expert_data_path, str(d)))] 
         
     vis = Visualizer()
 
+    WORK_SPACE = [
+        [-0.4, 0.4],
+        [-20, 20],
+        [0, 1.1]
+    ]
+
+    pcs = []
+    for pc_path in pc_paths:
+        print(pc_path)
+        pc = np.load(pc_path)
+        pc = pc[...,:3]
+
+        # crop
+        # pc = pc[np.where(
+        #     (pc[..., 0] > WORK_SPACE[0][0]) & (pc[..., 0] < WORK_SPACE[0][1]) &
+        #     (pc[..., 1] > WORK_SPACE[1][0]) & (pc[..., 1] < WORK_SPACE[1][1]) &
+        #     (pc[..., 2] > WORK_SPACE[2][0]) & (pc[..., 2] < WORK_SPACE[2][1])
+        # )]
+
+        pc, sample_indices = vis.farthest_point_sampling(pc, use_cuda=True)
+        pcs.append(pc)
+
+    color:tuple=None
+    vis.visualize_pointclouds(pcs, color=color)
+
+def plot_one():
+    # pc_path = '/home/rzilka/hitl-diffusion/data/bowl/0/10/back_depth.npy'
+    pc_path = '/home/rzilka/hitl-diffusion/data/bowl/0/10/low_dim.npy'
+        
+    vis = Visualizer()
+
+    pc = np.load(pc_path, allow_pickle=True)
+    print(pc)
+
+    x = a
+
+    pc = pc[...,:3]
+
+    # Crop
     # WORK_SPACE = [
+    #     [-0.4, 0.4],
     #     [-20, 20],
-    #     [-20, 20],
-    #     [0, 2]
+    #     [0, 1.1]
     # ]
 
-    # # crop
-    # pc = pc[np.where((pc[..., 0] > WORK_SPACE[0][0]) & (pc[..., 0] < WORK_SPACE[0][1]) &
-    #                             (pc[..., 1] > WORK_SPACE[1][0]) & (pc[..., 1] < WORK_SPACE[1][1]) &
-    #                             (pc[..., 2] > WORK_SPACE[2][0]) & (pc[..., 2] < WORK_SPACE[2][1]))]
+    # pc = pc[np.where(
+    #     (pc[..., 0] > WORK_SPACE[0][0]) & (pc[..., 0] < WORK_SPACE[0][1]) &
+    #     (pc[..., 1] > WORK_SPACE[1][0]) & (pc[..., 1] < WORK_SPACE[1][1]) &
+    #     (pc[..., 2] > WORK_SPACE[2][0]) & (pc[..., 2] < WORK_SPACE[2][1])
+    # )]
 
-    # print(type(pc))
-
-    # pc = vis.farthest_point_sampling(pc, use_cuda=False)
+    pc, sample_indices = vis.farthest_point_sampling(pc, use_cuda=True)
 
     color:tuple=None
     vis.visualize_pointcloud(pc, color=color)
+
+
+if __name__ == "__main__":
+    # plot_sequence()
+    plot_one()
