@@ -45,7 +45,6 @@ class HITL(BasePolicy):
         super().__init__()
 
         self.condition_type = condition_type
-
         # parse shape_meta
         action_shape = shape_meta['action']['shape']
         self.action_shape = action_shape
@@ -58,7 +57,6 @@ class HITL(BasePolicy):
             
         obs_shape_meta = shape_meta['obs']
         obs_dict = dict_apply(obs_shape_meta, lambda x: x['shape'])
-
 
         obs_encoder = DP3Encoder(observation_space=obs_dict,
             img_crop_shape=crop_shape,
@@ -299,8 +297,7 @@ class HITL(BasePolicy):
             nobs_features = nobs_features.reshape(batch_size, horizon, -1)
             cond_data = torch.cat([nactions, nobs_features], dim=-1)
             trajectory = cond_data.detach()
-
-
+        
         # generate impainting mask
         condition_mask = self.mask_generator(trajectory.shape)
 
