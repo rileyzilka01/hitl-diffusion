@@ -226,8 +226,8 @@ def plot_sequence():
 
     WORK_SPACE = [
         [-0.4, 0.4],
-        [-20, 20],
-        [0, 1.1]
+        [-0.4, 0.4],
+        [0, 1]
     ]
 
     pcs = []
@@ -237,11 +237,11 @@ def plot_sequence():
         pc = pc[...,:3]
 
         # crop
-        # pc = pc[np.where(
-        #     (pc[..., 0] > WORK_SPACE[0][0]) & (pc[..., 0] < WORK_SPACE[0][1]) &
-        #     (pc[..., 1] > WORK_SPACE[1][0]) & (pc[..., 1] < WORK_SPACE[1][1]) &
-        #     (pc[..., 2] > WORK_SPACE[2][0]) & (pc[..., 2] < WORK_SPACE[2][1])
-        # )]
+        pc = pc[np.where(
+            (pc[..., 0] > WORK_SPACE[0][0]) & (pc[..., 0] < WORK_SPACE[0][1]) &
+            (pc[..., 1] > WORK_SPACE[1][0]) & (pc[..., 1] < WORK_SPACE[1][1]) &
+            (pc[..., 2] > WORK_SPACE[2][0]) & (pc[..., 2] < WORK_SPACE[2][1])
+        )]
 
         pc, sample_indices = vis.farthest_point_sampling(pc, use_cuda=True)
         pcs.append(pc)
@@ -250,30 +250,25 @@ def plot_sequence():
     vis.visualize_pointclouds(pcs, color=color)
 
 def plot_one():
-    # pc_path = '/home/rzilka/hitl-diffusion/data/bowl/0/10/back_depth.npy'
-    pc_path = '/home/rzilka/hitl-diffusion/data/bowl/0/10/low_dim.npy'
+    pc_path = '/home/rzilka/hitl-diffusion/data/bowl/0/10/back_depth.npy'
         
     vis = Visualizer()
 
-    pc = np.load(pc_path, allow_pickle=True)
-    print(pc)
-
-    x = a
-
+    pc = np.load(pc_path)
     pc = pc[...,:3]
 
     # Crop
-    # WORK_SPACE = [
-    #     [-0.4, 0.4],
-    #     [-20, 20],
-    #     [0, 1.1]
-    # ]
+    WORK_SPACE = [
+        [-0.4, 0.4],
+        [-0.4, 0.4],
+        [0, 1]
+    ]
 
-    # pc = pc[np.where(
-    #     (pc[..., 0] > WORK_SPACE[0][0]) & (pc[..., 0] < WORK_SPACE[0][1]) &
-    #     (pc[..., 1] > WORK_SPACE[1][0]) & (pc[..., 1] < WORK_SPACE[1][1]) &
-    #     (pc[..., 2] > WORK_SPACE[2][0]) & (pc[..., 2] < WORK_SPACE[2][1])
-    # )]
+    pc = pc[np.where(
+        (pc[..., 0] > WORK_SPACE[0][0]) & (pc[..., 0] < WORK_SPACE[0][1]) &
+        (pc[..., 1] > WORK_SPACE[1][0]) & (pc[..., 1] < WORK_SPACE[1][1]) &
+        (pc[..., 2] > WORK_SPACE[2][0]) & (pc[..., 2] < WORK_SPACE[2][1])
+    )]
 
     pc, sample_indices = vis.farthest_point_sampling(pc, use_cuda=True)
 
@@ -282,5 +277,5 @@ def plot_one():
 
 
 if __name__ == "__main__":
-    # plot_sequence()
-    plot_one()
+    plot_sequence()
+    # plot_one()

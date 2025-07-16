@@ -1,7 +1,8 @@
-# Template:
-# bash scripts/train_policy.sh algorithm task some_number seed gpu
 # Examples:
-# bash scripts/train_policy.sh hitl hitl_block 0001 0 0
+# bash scripts/train_policy.sh dp3 adroit_hammer 0322 0 0
+# bash scripts/train_policy.sh dp3 dexart_laptop 0322 0 0
+# bash scripts/train_policy.sh simple_dp3 adroit_hammer 0322 0 0
+# bash scripts/train_policy.sh dp3 metaworld_basketball 0602 0 0
 
 
 
@@ -33,7 +34,7 @@ else
     echo -e "\033[33mTrain mode\033[0m"
 fi
 
-cd hitl-diffusion
+cd 3D-Diffusion-Policy
 
 
 export HYDRA_FULL_ERROR=1 
