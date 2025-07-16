@@ -338,38 +338,45 @@ class TrainHITLWorkspace:
             self.epoch += 1
             del step_log
 
-    def eval(self):
-        # load the latest checkpoint
-        
+    def eval(self, server=False):
+        # If server then it will just set up the necessities for inference
+        # Else run a sample inference on some mock data to make sure it works
         cfg = copy.deepcopy(self.cfg)
         
         lastest_ckpt_path = self.get_checkpoint_path(tag="latest")
         if lastest_ckpt_path.is_file():
             cprint(f"Resuming from checkpoint {lastest_ckpt_path}", 'magenta')
             self.load_checkpoint(path=lastest_ckpt_path)
-        
-        # configure env
-        # Null because there is no simulation environment for the hitl task
-        env_runner: BaseRunner
-        env_runner = hydra.utils.instantiate(
-            cfg.task.env_runner,
-            output_dir=self.output_dir
-        )
-        assert isinstance(env_runner, BaseRunner)
-        policy = self.model
-        if cfg.training.use_ema:
-            policy = self.ema_model
-        policy.eval()
-        policy.cuda()
 
-        # Dependent on there being a simulation environment
-        if env_runner is not None:
-            runner_log = env_runner.run(policy)
-        
-            cprint(f"---------------- Eval Results --------------", 'magenta')
-            for key, value in runner_log.items():
-                if isinstance(value, float):
-                    cprint(f"{key}: {value:.4f}", 'magenta')
+        self.policy = self.model
+        if cfg.training.use_ema:
+            self.policy = self.ema_model
+        self.policy.eval()
+        self.policy.cuda()
+
+        if not server:
+            self.model_inference()
+
+
+    def model_inference(self, server_call=False, data=None):
+        if server_call:
+            with torch.no_grad():
+                result = self.policy.predict_action(data)
+
+            print("Action:", result['action'])
+            print("Action Prediction:", result['action_pred'])
+
+        else:
+            obs_dict = {
+                "point_cloud": torch.randn(1, self.policy.n_obs_steps, 1024, 3).cuda(),  # dummy point cloud
+                "agent_pos": torch.randn(1, self.policy.n_obs_steps, 10).cuda() # Dummy robot pos
+            }
+
+            with torch.no_grad():
+                result = self.policy.predict_action(obs_dict)
+
+            print("Action:", result['action'])
+            print("Action Prediction:", result['action_pred'])
         
     @property
     def output_dir(self):

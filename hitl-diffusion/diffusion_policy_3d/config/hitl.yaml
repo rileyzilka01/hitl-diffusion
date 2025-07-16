@@ -6,6 +6,7 @@ name: train_hitl
 task_name: ${task.name}
 shape_meta: ${task.shape_meta}
 exp_name: "debug"
+server: false
 
 # horizon: 4
 horizon: 16
@@ -126,7 +127,7 @@ logging:
   - dp3
 
 checkpoint:
-  save_ckpt: False # if True, save checkpoint every checkpoint_every
+  save_ckpt: True # if True, save checkpoint every checkpoint_every
   topk:
     monitor_key: test_mean_score
     mode: max
