@@ -15,8 +15,9 @@ from omegaconf import OmegaConf
 import pathlib
 from train import TrainHITLWorkspace
 
-from flask import Flask, request, jsonify
-import threading
+import zmq
+import json
+import numpy as np
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
     
@@ -31,31 +32,31 @@ def main(cfg):
     workspace.eval(server=cfg.server)
 
     if cfg.server:
-        app = Flask(__name__)
+        context = zmq.Context()
+        socket = context.socket(zmq.REP)
+        socket.bind("tcp://192.168.1.186:5555")  # Listen on all interfaces
 
-        # Load your workspace once and reuse
-        workspace = TrainHITLWorkspace(cfg)
-        workspace.eval()
+        print("Server up!")
 
-        @app.route('/predict', methods=['POST'])
-        def predict():
-            try:
-                data = request.get_json(force=True)
-                # Convert data to appropriate format for predict_action
-                obs_dict = {
-                    "point_cloud": torch.tensor(data['point_cloud']).unsqueeze(0).cuda()  # shape [1, T, N, 3]
-                    "agent_pos": torch.tensor(data['agent_pos']).unsqueeze(0).cuda()  # shape [1, T, N, 3]
-                }
+        while True:
+            message = socket.recv()
+            data = json.loads(message.decode('utf-8'))
+            
+            if data.get("ping", False):
+                socket.send_string(json.dumps({"pong": True}))
+                continue
 
+            obs_dict = {
+                "point_cloud": torch.tensor(np.expand_dims(data['point_cloud'], axis=0)).cuda(),
+                "agent_pos": torch.tensor(np.expand_dims(data['agent_pos'], axis=0)).cuda()
+            }
+
+            with torch.no_grad():
                 result = workspace.model_inference(server_call=True, data=obs_dict)
 
-                action = result['action'].cpu().numpy().tolist()
-                return jsonify({"action": action})
-            except Exception as e:
-                return jsonify({"error": str(e)}), 500
-
-        print("🚀 Server running at http://localhost:5000")
-        app.run(host='0.0.0.0', port=5000)
+            action = result['action_pred'].cpu().numpy().tolist()
+            response = json.dumps({"action": action})
+            socket.send_string(response)
 
 if __name__ == "__main__":
     main()

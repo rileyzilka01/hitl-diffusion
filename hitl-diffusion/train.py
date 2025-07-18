@@ -377,6 +377,7 @@ class TrainHITLWorkspace:
 
             print("Action:", result['action'])
             print("Action Prediction:", result['action_pred'])
+        return result
         
     @property
     def output_dir(self):
