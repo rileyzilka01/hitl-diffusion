@@ -39,25 +39,22 @@ def preprocess_point_cloud(points, use_cuda=True):
     
     num_points = 1024
 
-    # extrinsics_matrix = np.array([[ 0.5213259,  -0.84716441,  0.10262438,  0.04268034],
-    #                               [ 0.25161211,  0.26751035,  0.93012341,  0.15598059],
-    #                               [-0.81542053, -0.45907589,  0.3526169,   0.47807532],
-    #                               [ 0.,          0.,          0.,          1.        ]])
+    extrinsics_matrix = get_homogenous_matrix()
 
+    point_xyz = points[..., :3]
+    point_xyz = point_xyz - [-0.01789913, -0.02264747, 1.24600857]
+    point_homogeneous = np.hstack((point_xyz, np.ones((point_xyz.shape[0], 1))))
+    point_homogeneous = np.dot(point_homogeneous, extrinsics_matrix)
+    point_xyz = point_homogeneous[..., :-1]
+    points[..., :3] = point_xyz
+    
+    # Crop
     WORK_SPACE = [
-        [-0.4, 0.4],
-        [-0.4, 0.4],
-        [0, 1]
+        [-0.4, 0.5],
+        [-0.3, 1],
+        [-0.2, 0.3]
     ]
 
-    # scale
-    # point_xyz = points[..., :3]*0.0002500000118743628
-    # point_homogeneous = np.hstack((point_xyz, np.ones((point_xyz.shape[0], 1))))
-    # point_homogeneous = np.dot(point_homogeneous, extrinsics_matrix)
-    # point_xyz = point_homogeneous[..., :-1]
-    # points[..., :3] = point_xyz
-    
-     # crop
     points = points[np.where(
         (points[..., 0] > WORK_SPACE[0][0]) & (points[..., 0] < WORK_SPACE[0][1]) &
         (points[..., 1] > WORK_SPACE[1][0]) & (points[..., 1] < WORK_SPACE[1][1]) &
@@ -70,6 +67,58 @@ def preprocess_point_cloud(points, use_cuda=True):
     points_rgb = points[sample_indices, 3:][0]
     points = np.hstack((points_xyz, points_rgb))
     return points
+
+def get_homogenous_matrix():
+    rx_deg = 55  # Rotation around X
+    ry_deg = 235  # Rotation around Y
+    rz_deg = 35  # Rotation around Z
+
+    # Convert to radians
+    rx = np.radians(rx_deg)
+    ry = np.radians(ry_deg)
+    rz = np.radians(rz_deg)
+
+    # Rotation matrix around X-axis
+    Rx = np.array([
+        [1, 0,          0,           0],
+        [0, np.cos(rx), -np.sin(rx), 0],
+        [0, np.sin(rx), np.cos(rx),  0],
+        [0, 0,          0,           1]
+    ])
+
+    # Rotation matrix around Y-axis
+    Ry = np.array([
+        [np.cos(ry),  0, np.sin(ry), 0],
+        [0,           1, 0,          0],
+        [-np.sin(ry), 0, np.cos(ry), 0],
+        [0,           0, 0,          1]
+    ])
+
+    # Rotation matrix around Z-axis
+    Rz = np.array([
+        [np.cos(rz), -np.sin(rz), 0, 0],
+        [np.sin(rz),  np.cos(rz), 0, 0],
+        [0,           0,          1, 0],
+        [0,           0,          0, 1]
+    ])
+
+    # Original extrinsics matrix (identity in this case)
+    extrinsics_matrix = np.eye(4)
+
+    # Combine rotations (Z * Y * X) — typical convention (can change based on your coordinate system)
+    rotation_combined = Rz @ Ry @ Rx
+
+    # Apply rotation to extrinsics
+    rotated_extrinsics = rotation_combined @ extrinsics_matrix
+
+    return rotated_extrinsics
+
+def select_evenly_spaced(array, max_length=100):
+    n = len(array)
+    if n <= max_length:
+        return array
+    indices = np.linspace(0, n - 1, max_length, dtype=int)
+    return [array[i] for i in indices]
    
 def preproces_image(image):
     img_size = 84
@@ -85,14 +134,14 @@ def preproces_image(image):
 
 
 expert_data_path = '/home/rzilka/hitl-diffusion/data/bowl'
-save_data_path = '/home/rzilka/hitl-diffusion/hitl-diffusion/data/hitl_block.zarr'
+save_data_path = '/home/rzilka/hitl-diffusion/hitl-diffusion/data/hitl_bowl.zarr'
 dirs = os.listdir(expert_data_path)
 dirs = sorted([int(d) for d in dirs])
 
 demo_dirs = [os.path.join(expert_data_path, str(d)) for d in dirs if os.path.isdir(os.path.join(expert_data_path, str(d)))]
 
 # storage
-# total_count = 0
+total_count = 0
 # img_arrays = []
 point_cloud_arrays = []
 # depth_arrays = []
@@ -119,6 +168,8 @@ for demo_dir in demo_dirs:
     cprint('Processing {}'.format(demo_dir), 'green')
 
     demo_timesteps = sorted([int(d) for d in os.listdir(demo_dir)])
+    demo_timesteps = select_evenly_spaced(demo_timesteps)
+
     for step_idx in tqdm.tqdm(range(len(demo_timesteps))):
         timestep_dir = os.path.join(demo_dir, str(step_idx))
 
@@ -141,8 +192,10 @@ for demo_dir in demo_dirs:
         point_cloud_arrays.append(obs_pointcloud)
         # depth_arrays.append(obs_depth)
         state_arrays.append(robot_state)
+
+        total_count += 1
     
-    episode_ends_arrays.append(len(demo_timesteps))
+    episode_ends_arrays.append(total_count)
 
 
 # create zarr file
