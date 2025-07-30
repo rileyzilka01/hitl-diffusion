@@ -34,7 +34,7 @@ def main(cfg):
     if cfg.server:
         context = zmq.Context()
         socket = context.socket(zmq.REP)
-        socket.bind("tcp://192.168.1.186:5555")  # Listen on all interfaces
+        socket.bind("tcp://192.168.1.161:5555")  # Listen on all interfaces
 
         print("Server up!")
 
