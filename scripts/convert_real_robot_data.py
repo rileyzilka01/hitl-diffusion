@@ -133,8 +133,8 @@ def preproces_image(image):
 
 
 
-expert_data_path = '/home/rzilka/hitl-diffusion/data/bowl'
-save_data_path = '/home/rzilka/hitl-diffusion/hitl-diffusion/data/hitl_bowl.zarr'
+expert_data_path = '/home/rzilka/hitl-diffusion/data/bowl_in_bowl'
+save_data_path = '/home/rzilka/hitl-diffusion/hitl-diffusion/data/hitl_bowl_in_bowl.zarr'
 dirs = os.listdir(expert_data_path)
 dirs = sorted([int(d) for d in dirs])
 
