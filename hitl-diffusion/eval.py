@@ -18,6 +18,7 @@ from train import TrainHITLWorkspace
 import zmq
 import json
 import numpy as np
+import time
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
     
@@ -51,8 +52,12 @@ def main(cfg):
                 "agent_pos": torch.tensor(np.expand_dims(data['agent_pos'], axis=0)).cuda()
             }
 
+            start_time = time.time()
             with torch.no_grad():
                 result = workspace.model_inference(server_call=True, data=obs_dict)
+            end_time = time.time()
+            inference_time = end_time - start_time
+            print(f"Inference took {inference_time:.6f} seconds")
 
             action = result['action_pred'].cpu().numpy().tolist()
             response = json.dumps({"action": action})

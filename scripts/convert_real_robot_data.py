@@ -113,7 +113,7 @@ def get_homogenous_matrix():
 
     return rotated_extrinsics
 
-def select_evenly_spaced(array, max_length=100):
+def select_evenly_spaced(array, max_length=48):
     n = len(array)
     if n <= max_length:
         return array
@@ -133,8 +133,8 @@ def preproces_image(image):
 
 
 
-expert_data_path = '/home/rzilka/hitl-diffusion/data/bowl_in_bowl'
-save_data_path = '/home/rzilka/hitl-diffusion/hitl-diffusion/data/hitl_bowl_in_bowl.zarr'
+expert_data_path = '/home/rzilka/hitl-diffusion/data/bowl'
+save_data_path = '/home/rzilka/hitl-diffusion/hitl-diffusion/data/hitl_block.zarr'
 dirs = os.listdir(expert_data_path)
 dirs = sorted([int(d) for d in dirs])
 
@@ -169,7 +169,8 @@ for demo_dir in demo_dirs:
     demo_timesteps = sorted([int(d) for d in os.listdir(demo_dir)])
     demo_timesteps = select_evenly_spaced(demo_timesteps)
 
-    prev_ee_orientation = None
+    # For getting the difference instead of absolute orientation
+    # prev_ee_orientation = None
 
     for step_idx in tqdm.tqdm(range(len(demo_timesteps))):
         timestep_dir = os.path.join(demo_dir, str(step_idx))
@@ -181,14 +182,16 @@ for demo_dir in demo_dirs:
         
         state_info = np.load(os.path.join(timestep_dir, 'low_dim.npy'), allow_pickle=True).item()
         robot_state = list(state_info['joints']['position'])[:7] + state_info['ee_position']
-        ee_orientation = state_info['ee_orientation']
+        # Comment this line to get difference instead of absolute orientation
+        action = state_info['ee_orientation']
 
         # Getting the difference instead of absolute orientation
-        # Comment out the next 4 lines to go back to position
-        if prev_ee_orientation == None:
-            action = [0, 0, 0]
-        else:
-            action = [ee_orientation[i] - prev_ee_orientation[i] for i in range(len(ee_orientation))]
+        # Comment out the next 5 lines to go back to position
+        # ee_orientation = state_info['ee_orientation']
+        # if prev_ee_orientation == None:
+        #     action = [0, 0, 0]
+        # else:
+        #     action = [ee_orientation[i] - prev_ee_orientation[i] for i in range(len(ee_orientation))]
 
         obs_pointcloud = np.load(os.path.join(timestep_dir, 'back_depth.npy'))
         # obs_pointcloud = obs_pointcloud[...,:3]
