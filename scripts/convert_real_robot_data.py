@@ -181,7 +181,7 @@ for demo_dir in demo_dirs:
         # obs_depth = preproces_image(np.expand_dims(obs_depth, axis=-1)).squeeze(-1)
         
         state_info = np.load(os.path.join(timestep_dir, 'low_dim.npy'), allow_pickle=True).item()
-        robot_state = list(state_info['joints']['position'])[:7] + state_info['ee_position']
+        robot_state = list(state_info['joints']['position'])[:8] + state_info['ee_position']
         # Comment this line to get difference instead of absolute orientation
         action = state_info['ee_orientation']
 
