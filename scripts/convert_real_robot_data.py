@@ -42,17 +42,15 @@ def preprocess_point_cloud(points, use_cuda=True):
     extrinsics_matrix = get_homogenous_matrix()
 
     point_xyz = points[..., :3]
-    point_xyz = point_xyz - [-0.01789913, -0.02264747, 1.24600857]
     point_homogeneous = np.hstack((point_xyz, np.ones((point_xyz.shape[0], 1))))
     point_homogeneous = np.dot(point_homogeneous, extrinsics_matrix)
-    point_xyz = point_homogeneous[..., :-1]
-    points[..., :3] = point_xyz
-    
+    points[..., :3] = point_homogeneous[..., :3]
+
     # Crop
     WORK_SPACE = [
-        [-0.4, 0.5],
-        [-0.3, 1],
-        [-0.2, 0.3]
+        [-0.5, 0.4],
+        [-1.4, 0],
+        [-1, -0.4]
     ]
 
     points = points[np.where(
@@ -60,18 +58,19 @@ def preprocess_point_cloud(points, use_cuda=True):
         (points[..., 1] > WORK_SPACE[1][0]) & (points[..., 1] < WORK_SPACE[1][1]) &
         (points[..., 2] > WORK_SPACE[2][0]) & (points[..., 2] < WORK_SPACE[2][1])
     )]
-    
+
     points_xyz = points[..., :3]
     points_xyz, sample_indices = farthest_point_sampling(points_xyz, num_points, use_cuda)
+    points_xyz[..., :3] -= [0.03694567, -0.63618947, -0.85372098]
     sample_indices = sample_indices.cpu()
     points_rgb = points[sample_indices, 3:][0]
     points = np.hstack((points_xyz, points_rgb))
     return points
 
 def get_homogenous_matrix():
-    rx_deg = 55  # Rotation around X
-    ry_deg = 235  # Rotation around Y
-    rz_deg = 35  # Rotation around Z
+    rx_deg = 37  # Rotation around X
+    ry_deg = 180  # Rotation around Y
+    rz_deg = 0  # Rotation around Z
 
     # Convert to radians
     rx = np.radians(rx_deg)
@@ -167,7 +166,7 @@ for demo_dir in demo_dirs:
     cprint('Processing {}'.format(demo_dir), 'green')
 
     demo_timesteps = sorted([int(d) for d in os.listdir(demo_dir)])
-    demo_timesteps = select_evenly_spaced(demo_timesteps)
+    demo_timesteps = select_evenly_spaced(demo_timesteps, max_length=64)
 
     # For getting the difference instead of absolute orientation
     # prev_ee_orientation = None
