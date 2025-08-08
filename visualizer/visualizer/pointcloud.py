@@ -261,7 +261,7 @@ def plot_sequence():
     vis.visualize_pointclouds(pcs, color=color)
 
 def plot_one():
-    pc_path = '/home/rzilka/hitl-diffusion/data/bowl/0/10/back_depth.npy'
+    pc_path = '/home/rzilka/png_vision/data/block-joy-short/0/0/depth.npy'
         
     vis = Visualizer()
 
@@ -276,17 +276,24 @@ def plot_one():
 
     # scale
     point_xyz = pc[..., :3]
-    point_xyz = point_xyz - [-0.01789913, -0.02264747, 1.24600857]
     point_homogeneous = np.hstack((point_xyz, np.ones((point_xyz.shape[0], 1))))
     point_homogeneous = np.dot(point_homogeneous, extrinsics_matrix)
     point_xyz = point_homogeneous[..., :-1]
     pc[..., :3] = point_xyz
     
     # Crop
+    # Tall
+    # WORK_SPACE = [
+    #     [-0.5, 0.4],
+    #     [-1.4, 0],
+    #     [-1, -0.4]
+    # ]
+
+    # Short
     WORK_SPACE = [
-        [-0.4, 0.5],
-        [-0.3, 1],
-        [-0.2, 0.3]
+        [-0.4, 0.4],
+        [-1.1, 1],
+        [-0.4, 1]
     ]
 
     pc = pc[np.where(
@@ -296,15 +303,25 @@ def plot_one():
     )]
 
     pc, sample_indices = vis.farthest_point_sampling(pc, use_cuda=True)
+    # Tall
+    # pc[..., :3] = pc[..., :3] - [0.03694567, -0.63618947, -0.85372098]
+    # Short
+    pc[..., :3] = pc[..., :3] - [-0.04489961, -0.6327338, -0.34466678]
 
     color:tuple=None
     vis.visualize_pointcloud(pc, color=color)
 
 
 def get_homogenous_matrix():
-    rx_deg = 55  # Rotation around X
-    ry_deg = 235  # Rotation around Y
-    rz_deg = 35  # Rotation around Z
+    # Tall
+    # rx_deg = 37  # Rotation around X
+    # ry_deg = 180  # Rotation around Y
+    # rz_deg = 0  # Rotation around Z
+
+    # Short
+    rx_deg = 60  # Rotation around X
+    ry_deg = 180  # Rotation around Y
+    rz_deg = 0  # Rotation around Z
 
     # Convert to radians
     rx = np.radians(rx_deg)
@@ -348,5 +365,5 @@ def get_homogenous_matrix():
 
 
 if __name__ == "__main__":
-    plot_sequence()
-    # plot_one()
+    # plot_sequence()
+    plot_one()

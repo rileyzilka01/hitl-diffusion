@@ -49,13 +49,18 @@ def preprocess_point_cloud(points, use_cuda=True):
 
     # Crop
     # Tall Cam
-    WORK_SPACE = [
-        [-0.5, 0.4],
-        [-1.4, 0],
-        [-1, -0.4]
-    ]
+    # WORK_SPACE = [
+    #     [-0.5, 0.4],
+    #     [-1.4, 0],
+    #     [-1, -0.4]
+    # ]
 
     # Short Cam
+    WORK_SPACE = [
+        [-0.4, 0.4],
+        [-1.1, 1],
+        [-0.4, 1]
+    ]
 
     points = points[np.where(
         (points[..., 0] > WORK_SPACE[0][0]) & (points[..., 0] < WORK_SPACE[0][1]) &
@@ -66,9 +71,9 @@ def preprocess_point_cloud(points, use_cuda=True):
     points_xyz = points[..., :3]
     points_xyz, sample_indices = farthest_point_sampling(points_xyz, num_points, use_cuda)
     # Tall Cam
-    points_xyz[..., :3] -= [0.03694567, -0.63618947, -0.85372098]
+    # points_xyz[..., :3] -= [0.03694567, -0.63618947, -0.85372098]
     # Short Cam
-    # 
+    points_xyz[..., :3] -= [-0.04489961, -0.6327338, -0.34466678]
     sample_indices = sample_indices.cpu()
     points_rgb = points[sample_indices, 3:][0]
     points = np.hstack((points_xyz, points_rgb))
@@ -76,11 +81,14 @@ def preprocess_point_cloud(points, use_cuda=True):
 
 def get_homogenous_matrix():
     # Tall Cam
-    rx_deg = 37  # Rotation around X
-    ry_deg = 180  # Rotation around Y
-    rz_deg = 0  # Rotation around Z
+    # rx_deg = 37  # Rotation around X
+    # ry_deg = 180  # Rotation around Y
+    # rz_deg = 0  # Rotation around Z
 
     # Short Cam
+    rx_deg = 60  # Rotation around X
+    ry_deg = 180  # Rotation around Y
+    rz_deg = 0  # Rotation around Z
 
     # Convert to radians
     rx = np.radians(rx_deg)
@@ -160,7 +168,7 @@ state_arrays = []
 action_arrays = []
 episode_ends_arrays = []
 
-use_gripper = True
+use_gripper = False
 
 if os.path.exists(save_data_path):
     cprint('Data already exists at {}'.format(save_data_path), 'red')
