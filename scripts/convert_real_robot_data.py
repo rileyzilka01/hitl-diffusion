@@ -9,6 +9,7 @@ import torchvision
 from termcolor import cprint
 import re
 import time
+import sys
 
 
 import numpy as np
@@ -47,11 +48,14 @@ def preprocess_point_cloud(points, use_cuda=True):
     points[..., :3] = point_homogeneous[..., :3]
 
     # Crop
+    # Tall Cam
     WORK_SPACE = [
         [-0.5, 0.4],
         [-1.4, 0],
         [-1, -0.4]
     ]
+
+    # Short Cam
 
     points = points[np.where(
         (points[..., 0] > WORK_SPACE[0][0]) & (points[..., 0] < WORK_SPACE[0][1]) &
@@ -61,16 +65,22 @@ def preprocess_point_cloud(points, use_cuda=True):
 
     points_xyz = points[..., :3]
     points_xyz, sample_indices = farthest_point_sampling(points_xyz, num_points, use_cuda)
+    # Tall Cam
     points_xyz[..., :3] -= [0.03694567, -0.63618947, -0.85372098]
+    # Short Cam
+    # 
     sample_indices = sample_indices.cpu()
     points_rgb = points[sample_indices, 3:][0]
     points = np.hstack((points_xyz, points_rgb))
     return points
 
 def get_homogenous_matrix():
+    # Tall Cam
     rx_deg = 37  # Rotation around X
     ry_deg = 180  # Rotation around Y
     rz_deg = 0  # Rotation around Z
+
+    # Short Cam
 
     # Convert to radians
     rx = np.radians(rx_deg)
@@ -130,10 +140,12 @@ def preproces_image(image):
     image = image.cpu().numpy()
     return image
 
+if len(sys.argv) < 3:
+    print("Usage: python scripts/convert_real_robot_data.py <input_dataset_name> <output_dataset_name>")
+    sys.exit(1)
 
-
-expert_data_path = '/home/rzilka/hitl-diffusion/data/bowl'
-save_data_path = '/home/rzilka/hitl-diffusion/hitl-diffusion/data/hitl_block.zarr'
+expert_data_path = f'/home/rzilka/hitl-diffusion/data/{sys.argv[1]}'
+save_data_path = f'/home/rzilka/hitl-diffusion/hitl-diffusion/data/{sys.argv[2]}.zarr'
 dirs = os.listdir(expert_data_path)
 dirs = sorted([int(d) for d in dirs])
 
@@ -148,6 +160,7 @@ state_arrays = []
 action_arrays = []
 episode_ends_arrays = []
 
+use_gripper = True
 
 if os.path.exists(save_data_path):
     cprint('Data already exists at {}'.format(save_data_path), 'red')
@@ -180,7 +193,11 @@ for demo_dir in demo_dirs:
         # obs_depth = preproces_image(np.expand_dims(obs_depth, axis=-1)).squeeze(-1)
         
         state_info = np.load(os.path.join(timestep_dir, 'low_dim.npy'), allow_pickle=True).item()
-        robot_state = list(state_info['joints']['position'])[:8] + state_info['ee_position']
+        if use_gripper:
+            robot_state = list(state_info['joints']['position'])[:8] + state_info['ee_position']
+        else:
+            robot_state = list(state_info['joints']['position'])[:7] + state_info['ee_position']
+
         # Comment this line to get difference instead of absolute orientation
         action = state_info['ee_orientation']
 
@@ -192,7 +209,7 @@ for demo_dir in demo_dirs:
         # else:
         #     action = [ee_orientation[i] - prev_ee_orientation[i] for i in range(len(ee_orientation))]
 
-        obs_pointcloud = np.load(os.path.join(timestep_dir, 'back_depth.npy'))
+        obs_pointcloud = np.load(os.path.join(timestep_dir, 'depth.npy'), allow_pickle=True)
         # obs_pointcloud = obs_pointcloud[...,:3]
         obs_pointcloud = preprocess_point_cloud(obs_pointcloud, use_cuda=True)
         # wrist_depth = np.load(os.path.join(demo_dir, '/wrist_depth.npy'))
