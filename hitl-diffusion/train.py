@@ -32,6 +32,9 @@ from diffusion_policy_3d.common.pytorch_util import dict_apply, optimizer_to
 from diffusion_policy_3d.model.diffusion.ema_model import EMAModel
 from diffusion_policy_3d.model.common.lr_scheduler import get_scheduler
 
+
+from scipy.spatial.transform import Rotation as R
+
 OmegaConf.register_new_resolver("eval", eval, replace=True)
 
 class TrainHITLWorkspace:
@@ -374,6 +377,10 @@ class TrainHITLWorkspace:
 
             with torch.no_grad():
                 result = self.policy.predict_action(obs_dict)
+
+
+            # r_back = R.from_quat(action)
+            # deg = r_back.as_euler('xyz', degrees=True)
 
             # print("Action:", result['action'])
             # print("Action Prediction:", result['action_pred'])

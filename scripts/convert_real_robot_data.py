@@ -19,7 +19,7 @@ import torchvision
 import socket
 import pickle
 
-
+from scipy.spatial.transform import Rotation as R
 
 def farthest_point_sampling(points, num_points=1024, use_cuda=True):
     K = [num_points]
@@ -39,35 +39,38 @@ def farthest_point_sampling(points, num_points=1024, use_cuda=True):
 def preprocess_point_cloud(points, use_cuda=True):
     
     num_points = 1024
+    orientation = False
+    if orientation:
+        extrinsics_matrix = get_homogenous_matrix()
 
-    # extrinsics_matrix = get_homogenous_matrix()
-
-    # point_xyz = points[..., :3]
-    # point_homogeneous = np.hstack((point_xyz, np.ones((point_xyz.shape[0], 1))))
-    # point_homogeneous = np.dot(point_homogeneous, extrinsics_matrix)
-    # points[..., :3] = point_homogeneous[..., :3]
+        point_xyz = points[..., :3]
+        point_homogeneous = np.hstack((point_xyz, np.ones((point_xyz.shape[0], 1))))
+        point_homogeneous = np.dot(point_homogeneous, extrinsics_matrix)
+        points[..., :3] = point_homogeneous[..., :3]
 
     # Crop
-    # Tall Cam
-    # WORK_SPACE = [
-    #     [-0.5, 0.4],
-    #     [-1.4, 0],
-    #     [-1, -0.4]
-    # ]
+    if orientation:
+        # Tall Cam
+        # WORK_SPACE = [
+        #     [-0.5, 0.4],
+        #     [-1.4, 0],
+        #     [-1, -0.4]
+        # ]
 
-    # Short Cam
-    # WORK_SPACE = [
-    #     [-0.4, 0.4],
-    #     [-1.1, 1],
-    #     [-0.4, 1]
-    # ]
+        # Short Cam
+        WORK_SPACE = [
+            [-0.4, 0.4],
+            [-1.1, 1],
+            [-0.4, 1]
+        ]
 
-    # Short Unoriented
-    WORK_SPACE = [
-        [-0.4, 0.4],
-        [-1.1, 1],
-        [-0.4, 1.2]
-    ]
+    else:
+        # Short Unoriented
+        WORK_SPACE = [
+            [-0.4, 0.4],
+            [-1.1, 1],
+            [-0.4, 1.2]
+        ]
 
     points = points[np.where(
         (points[..., 0] > WORK_SPACE[0][0]) & (points[..., 0] < WORK_SPACE[0][1]) &
@@ -77,10 +80,11 @@ def preprocess_point_cloud(points, use_cuda=True):
 
     points_xyz = points[..., :3]
     points_xyz, sample_indices = farthest_point_sampling(points_xyz, num_points, use_cuda)
-    # Tall Cam
-    # points_xyz[..., :3] -= [0.03694567, -0.63618947, -0.85372098]
-    # Short Cam
-    # points_xyz[..., :3] -= [-0.04489961, -0.6327338, -0.34466678]
+    if orientation:
+        # Tall Cam
+        # points_xyz[..., :3] -= [0.03694567, -0.63618947, -0.85372098]
+        # Short Cam
+        points_xyz[..., :3] -= [-0.04489961, -0.6327338, -0.34466678]
     sample_indices = sample_indices.cpu()
     points_rgb = points[sample_indices, 3:][0]
     points = np.hstack((points_xyz, points_rgb))
@@ -197,7 +201,7 @@ for demo_dir in demo_dirs:
     demo_timesteps = select_evenly_spaced(demo_timesteps, max_length=64)
 
     # For getting the difference instead of absolute orientation
-    # prev_ee_orientation = None
+    prev_ee_orientation = None
 
     for step_idx in tqdm.tqdm(range(len(demo_timesteps))):
         timestep_dir = os.path.join(demo_dir, str(step_idx))
@@ -214,15 +218,21 @@ for demo_dir in demo_dirs:
             robot_state = list(state_info['joints']['position'])[:7] + state_info['ee_position']
 
         # Comment this line to get difference instead of absolute orientation
-        action = state_info['ee_orientation']
+        # action = state_info['ee_orientation']
 
         # Getting the difference instead of absolute orientation
         # Comment out the next 5 lines to go back to position
-        # ee_orientation = state_info['ee_orientation']
-        # if prev_ee_orientation == None:
-        #     action = [0, 0, 0]
-        # else:
-        #     action = [ee_orientation[i] - prev_ee_orientation[i] for i in range(len(ee_orientation))]
+        ee_orientation = state_info['ee_orientation']
+        if prev_ee_orientation == None:
+            action = [0, 0, 0]
+        else:
+            action = [ee_orientation[i] - prev_ee_orientation[i] for i in range(len(ee_orientation))]
+        prev_ee_orientation = ee_orientation
+
+        # Convert to quaternion (x, y, z, w)
+        euler = action
+        r = R.from_euler('xyz', euler, degrees=True)
+        action = r.as_quat()
 
         obs_pointcloud = np.load(os.path.join(timestep_dir, 'depth.npy'), allow_pickle=True)
         # obs_pointcloud = obs_pointcloud[...,:3]
