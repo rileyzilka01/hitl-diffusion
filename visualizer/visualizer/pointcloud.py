@@ -261,7 +261,7 @@ def plot_sequence():
     vis.visualize_pointclouds(pcs, color=color)
 
 def plot_one():
-    pc_path = '/home/serg/projects/hitl-diffusion/data/bowl/0/10/back_depth.npy'
+    pc_path = '/home/serg/projects/hitl-diffusion/data/back_depth.npy'
     # pc_path = '/home/serg/projects/png_vision/test.npy'
         
     vis = Visualizer()
@@ -281,11 +281,10 @@ def plot_one():
     point_homogeneous = np.dot(point_homogeneous, extrinsics_matrix)
     pc[..., :3] = point_homogeneous[..., :3]
 
-    # Crop
     WORK_SPACE = [
-        [-0.5, 0.5],
-        [0, 1.3],
-        [-1, -0.4]
+        [-0.6, 0.5],
+        [0.2, 1.4],
+        [-0.4, 0]
     ]
 
     pc = pc[np.where(
@@ -294,15 +293,16 @@ def plot_one():
         (pc[..., 2] > WORK_SPACE[2][0]) & (pc[..., 2] < WORK_SPACE[2][1])
     )]
 
+
+    pc = pc[..., :3] - [-0.03871111,  0.5306654,  -0.32995403]
     pc, sample_indices = vis.farthest_point_sampling(pc, use_cuda=True)
-    # pc[..., :3] -= [0.03694567, -0.63618947, -0.85372098]
-    #
+
     color:tuple=None
     vis.visualize_pointcloud(pc, color=color)
 
 
 def get_homogenous_matrix():
-    rx_deg = 150  # Rotation around X
+    rx_deg = 120  # Rotation around X
     ry_deg = 5  # Rotation around Y
     rz_deg = 0  # Rotation around Z
 

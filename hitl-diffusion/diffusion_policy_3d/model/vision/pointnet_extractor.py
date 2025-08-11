@@ -162,7 +162,7 @@ class PointNetEncoderXYZ(nn.Module):
             self.final_projection = nn.Identity()
             cprint("[PointNetEncoderXYZ] not use projection", "yellow")
             
-        VIS_WITH_GRAD_CAM = True
+        VIS_WITH_GRAD_CAM = False
         if VIS_WITH_GRAD_CAM:
             self.gradient = None
             self.feature = None

@@ -62,7 +62,7 @@ def preprocess_point_cloud(pc, use_cuda=True):
     return pc
 
 def get_homogenous_matrix():
-    rx_deg = 125  # Rotation around X
+    rx_deg = 120  # Rotation around X
     ry_deg = 5  # Rotation around Y
     rz_deg = 0  # Rotation around Z
 
