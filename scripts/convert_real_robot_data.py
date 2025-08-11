@@ -204,7 +204,7 @@ for demo_dir in demo_dirs:
     prev_ee_orientation = None
 
     for step_idx in tqdm.tqdm(range(len(demo_timesteps))):
-        timestep_dir = os.path.join(demo_dir, str(step_idx))
+        timestep_dir = os.path.join(demo_dir, str(demo_timesteps[step_idx]))
 
         # obs_image = demo['image'][step_idx]
         # obs_depth = demo['depth'][step_idx]
@@ -226,7 +226,8 @@ for demo_dir in demo_dirs:
         if prev_ee_orientation == None:
             action = [0, 0, 0]
         else:
-            action = [ee_orientation[i] - prev_ee_orientation[i] for i in range(len(ee_orientation))]
+            # Consider angle wrapping
+            action = [(ee_orientation[i] - prev_ee_orientation[i] + 180) % 360 - 180 for i in range(len(ee_orientation))]
         prev_ee_orientation = ee_orientation
 
         # Convert to quaternion (x, y, z, w)
@@ -235,9 +236,7 @@ for demo_dir in demo_dirs:
         action = r.as_quat()
 
         obs_pointcloud = np.load(os.path.join(timestep_dir, 'depth.npy'), allow_pickle=True)
-        # obs_pointcloud = obs_pointcloud[...,:3]
         obs_pointcloud = preprocess_point_cloud(obs_pointcloud, use_cuda=True)
-        # wrist_depth = np.load(os.path.join(demo_dir, '/wrist_depth.npy'))
 
         # img_arrays.append(obs_image)
         action_arrays.append(action)
