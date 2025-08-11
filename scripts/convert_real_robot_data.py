@@ -40,12 +40,12 @@ def preprocess_point_cloud(points, use_cuda=True):
     
     num_points = 1024
 
-    extrinsics_matrix = get_homogenous_matrix()
+    # extrinsics_matrix = get_homogenous_matrix()
 
-    point_xyz = points[..., :3]
-    point_homogeneous = np.hstack((point_xyz, np.ones((point_xyz.shape[0], 1))))
-    point_homogeneous = np.dot(point_homogeneous, extrinsics_matrix)
-    points[..., :3] = point_homogeneous[..., :3]
+    # point_xyz = points[..., :3]
+    # point_homogeneous = np.hstack((point_xyz, np.ones((point_xyz.shape[0], 1))))
+    # point_homogeneous = np.dot(point_homogeneous, extrinsics_matrix)
+    # points[..., :3] = point_homogeneous[..., :3]
 
     # Crop
     # Tall Cam
@@ -56,10 +56,17 @@ def preprocess_point_cloud(points, use_cuda=True):
     # ]
 
     # Short Cam
+    # WORK_SPACE = [
+    #     [-0.4, 0.4],
+    #     [-1.1, 1],
+    #     [-0.4, 1]
+    # ]
+
+    # Short Unoriented
     WORK_SPACE = [
         [-0.4, 0.4],
         [-1.1, 1],
-        [-0.4, 1]
+        [-0.4, 1.2]
     ]
 
     points = points[np.where(
@@ -73,7 +80,7 @@ def preprocess_point_cloud(points, use_cuda=True):
     # Tall Cam
     # points_xyz[..., :3] -= [0.03694567, -0.63618947, -0.85372098]
     # Short Cam
-    points_xyz[..., :3] -= [-0.04489961, -0.6327338, -0.34466678]
+    # points_xyz[..., :3] -= [-0.04489961, -0.6327338, -0.34466678]
     sample_indices = sample_indices.cpu()
     points_rgb = points[sample_indices, 3:][0]
     points = np.hstack((points_xyz, points_rgb))

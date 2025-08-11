@@ -268,18 +268,18 @@ def plot_one():
     pc = np.load(pc_path)
     pc = pc[...,:3]
 
-    extrinsics_matrix = get_homogenous_matrix()
+    # extrinsics_matrix = get_homogenous_matrix()
 
     # Center the points about the origin
     # centroid = np.mean(pc[..., :3], axis=0)
     # pc = pc[..., :3] - centroid
 
-    # scale
-    point_xyz = pc[..., :3]
-    point_homogeneous = np.hstack((point_xyz, np.ones((point_xyz.shape[0], 1))))
-    point_homogeneous = np.dot(point_homogeneous, extrinsics_matrix)
-    point_xyz = point_homogeneous[..., :-1]
-    pc[..., :3] = point_xyz
+    # rotate
+    # point_xyz = pc[..., :3]
+    # point_homogeneous = np.hstack((point_xyz, np.ones((point_xyz.shape[0], 1))))
+    # point_homogeneous = np.dot(point_homogeneous, extrinsics_matrix)
+    # point_xyz = point_homogeneous[..., :-1]
+    # pc[..., :3] = point_xyz
     
     # Crop
     # Tall
@@ -290,10 +290,17 @@ def plot_one():
     # ]
 
     # Short
+    # WORK_SPACE = [
+    #     [-0.4, 0.4],
+    #     [-1.1, 1],
+    #     [-0.4, 1]
+    # ]
+
+    # Short unoriented
     WORK_SPACE = [
         [-0.4, 0.4],
         [-1.1, 1],
-        [-0.4, 1]
+        [-0.4, 1.2]
     ]
 
     pc = pc[np.where(
@@ -306,7 +313,7 @@ def plot_one():
     # Tall
     # pc[..., :3] = pc[..., :3] - [0.03694567, -0.63618947, -0.85372098]
     # Short
-    pc[..., :3] = pc[..., :3] - [-0.04489961, -0.6327338, -0.34466678]
+    # pc[..., :3] = pc[..., :3] - [-0.04489961, -0.6327338, -0.34466678]
 
     color:tuple=None
     vis.visualize_pointcloud(pc, color=color)
