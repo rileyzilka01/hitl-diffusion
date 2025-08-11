@@ -20,6 +20,8 @@ import json
 import numpy as np
 import time
 
+from scipy.spatial.transform import Rotation as R
+
 OmegaConf.register_new_resolver("eval", eval, replace=True)
     
 
@@ -59,8 +61,20 @@ def main(cfg):
             inference_time = end_time - start_time
             print(f"Inference took {inference_time:.6f} seconds")
 
-            action = result['action_pred'].cpu().numpy().tolist()
-            response = json.dumps({"action": action})
+            action = result['action_pred'].cpu().numpy().tolist()[0]
+            
+            # Converting from quat back to deg
+            new_action = []
+            for i in range(len(action)):
+                quat = action[i]
+                r_back = R.from_quat(quat)
+                deg = r_back.as_euler('xyz', degrees=True)
+                new_action.append(deg.tolist())
+
+            # print(new_action)
+            # x = a
+
+            response = json.dumps({"action": new_action})
             socket.send_string(response)
 
 if __name__ == "__main__":
