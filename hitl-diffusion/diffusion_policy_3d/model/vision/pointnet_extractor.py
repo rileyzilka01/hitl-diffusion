@@ -6,6 +6,7 @@ import copy
 
 from typing import Optional, Dict, Tuple, Union, List, Type
 from termcolor import cprint
+import matplotlib.pyplot as plt
 
 
 def create_mlp(
@@ -161,7 +162,7 @@ class PointNetEncoderXYZ(nn.Module):
             self.final_projection = nn.Identity()
             cprint("[PointNetEncoderXYZ] not use projection", "yellow")
             
-        VIS_WITH_GRAD_CAM = False
+        VIS_WITH_GRAD_CAM = True
         if VIS_WITH_GRAD_CAM:
             self.gradient = None
             self.feature = None
@@ -182,6 +183,16 @@ class PointNetEncoderXYZ(nn.Module):
         for grad-cam
         """
         self.gradient = grad_output[0]
+        pc = self.input_pointcloud[0].cpu().numpy()  # [N, 3] 
+        weights = self.gradient[0].norm(dim=1).cpu().numpy()  # [N] 
+ 
+        fig = plt.figure() 
+        ax = fig.add_subplot(111, projection='3d') 
+        sc = ax.scatter(pc[:,0], pc[:,1], pc[:,2], c=weights, cmap='viridis') 
+        plt.colorbar(sc) 
+        plt.title("Gradient-based Importance of Points") 
+        plt.show() 
+
 
     def save_feature(self, module, input, output):
         """

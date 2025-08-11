@@ -9,7 +9,7 @@ exp_name: "debug"
 server: false
 
 # horizon: 4
-horizon: 16
+horizon: 32
 n_obs_steps: 2
 # n_action_steps: 3
 n_action_steps: 8
@@ -22,6 +22,7 @@ policy:
   _target_: diffusion_policy_3d.policy.hitl.HITL
   use_point_crop: true
   condition_type: film
+  # condition_type: cross_attention_film
   use_down_condition: true
   use_mid_condition: true
   use_up_condition: true

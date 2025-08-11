@@ -23,7 +23,7 @@ class HitlDataset(BaseDataset):
         super().__init__()
         self.task_name = task_name
         self.replay_buffer = ReplayBuffer.copy_from_path(
-            zarr_path, keys=['state', 'action', 'point_cloud'])
+            zarr_path, keys=['state', 'action', 'back_point_cloud'])
         val_mask = get_val_mask(
             n_episodes=self.replay_buffer.n_episodes, 
             val_ratio=val_ratio,
@@ -61,7 +61,7 @@ class HitlDataset(BaseDataset):
         data = {
             'action': self.replay_buffer['action'], # EE orientation
             'agent_pos': self.replay_buffer['state'][...,:], # Joint position and EE position, '...,:' selects all dimensions of array for variable size array (different tasks have different state dimensions)
-            'point_cloud': self.replay_buffer['point_cloud'], # Colorless point cloud
+            'point_cloud': self.replay_buffer['back_point_cloud'], # Colorless point cloud
         }
         normalizer = LinearNormalizer()
         normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
@@ -73,7 +73,7 @@ class HitlDataset(BaseDataset):
 
     def _sample_to_data(self, sample):
         agent_pos = sample['state'][:,].astype(np.float32) # (agent_posx2, block_posex3)
-        point_cloud = sample['point_cloud'][:,].astype(np.float32) # (T, 1024, 6)
+        point_cloud = sample['back_point_cloud'][:,].astype(np.float32) # (T, 1024, 6)
 
         data = {
             'obs': {
