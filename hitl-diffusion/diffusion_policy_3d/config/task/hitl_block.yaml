@@ -9,10 +9,10 @@ shape_meta: &shape_meta
       shape: [1024, 3]
       type: point_cloud
     agent_pos:
-      shape: [7] # size of the robot state array (7 for joint pos and 1 for gripper position and 3 for ee_position)
+      shape: [10] # size of the robot state array (7 for joint pos and 1 for gripper position and 3 for ee_position)
       type: low_dimx
   action:
-    shape: [6] # size of the action array (3 for ee_orientation)
+    shape: [3] # size of the action array (3 for ee_orientation)
 
 env_runner: null # Null because we dont need any simulation environments since were in the real world
 

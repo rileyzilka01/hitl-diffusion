@@ -65,7 +65,7 @@ def main(cfg):
 
             new_action = []
             for i in range(len(action)):
-                rotvec = R.from_rotvec(action[i][3:])
+                rotvec = R.from_rotvec(action[i])
                 deg = rotvec.as_euler('xyz', degrees=True)
                 # deg = r_back.as_euler('xyz', degrees=True)
                 new_action.append(deg.tolist())
