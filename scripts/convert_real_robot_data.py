@@ -164,7 +164,7 @@ for demo_dir in demo_dirs:
     prev_ee_pos = None
     prev_ee_ori = None
     demo_timesteps = sorted([int(d) for d in os.listdir(demo_dir)])
-    demo_timesteps = select_evenly_spaced(demo_timesteps)
+    # demo_timesteps = select_evenly_spaced(demo_timesteps, max_length=64)
 
     prev_ee_orientation = None
 
@@ -180,55 +180,57 @@ for demo_dir in demo_dirs:
 
 
 
-        # if prev_ee_pos is None:
-        #     action = [0, 0, 0, 0, 0, 0] # Only happens for the first timestep
-        #     prev_ee_pos = state_info['ee_position']
-        #     prev_ee_ori = state_info['ee_orientation']
-        #
-        #     back_pointcloud = preprocess_point_cloud(back_pointcloud, use_cuda=True)[...,:3] # only get the xyz
-        #     action_arrays.append(action)
-        #     back_point_cloud_arrays.append(back_pointcloud)
-        #     state_arrays.append(robot_state)
-        #     total_count += 1
-        # else:
-        #     prev_quat = R.from_euler('xyz', curr_ee_ori, degrees=True)
-        #     curr_quat = R.from_euler('xyz', prev_ee_ori, degrees=True)
-        #
-        #     ori_diff = (prev_quat * curr_quat.inv()).as_rotvec()
-        #
-        #     # take a timstep only if the orientation is different enough from a previous step
-        #     if (np.any(np.abs(ori_diff) > [0.015, 0.015, 0.015])):
-        #         action = np.hstack([np.array(state_info['ee_position']) - np.array(prev_ee_pos), ori_diff])
-        #         prev_ee_pos = state_info['ee_position']
-        #         prev_ee_ori = state_info['ee_orientation']
-        #
-        #         back_pointcloud = preprocess_point_cloud(back_pointcloud, use_cuda=True)[...,:3] # only get the xyz
-        #         action_arrays.append(action)
-        #         back_point_cloud_arrays.append(back_pointcloud)
-        #         state_arrays.append(robot_state)
-        #
-        #         total_count += 1
         curr_quat = R.from_euler('xyz', curr_ee_ori, degrees=True)
+        robot_state = np.hstack([curr_ee_pos, curr_quat.as_quat()])
         if prev_ee_pos is None:
             action = [0, 0, 0, 0, 0, 0] # Only happens for the first timestep
+            prev_ee_pos = state_info['ee_position']
+            prev_ee_ori = state_info['ee_orientation']
+
+            back_pointcloud = preprocess_point_cloud(back_pointcloud, use_cuda=True)[...,:3] # only get the xyz
+            action_arrays.append(action)
+            back_point_cloud_arrays.append(back_pointcloud)
+            state_arrays.append(robot_state)
+            total_count += 1
         else:
             prev_quat = R.from_euler('xyz', prev_ee_ori, degrees=True)
+            # curr_quat = R.from_euler('xyz', prev_ee_ori, degrees=True)
 
+            # ori_diff = (prev_quat * curr_quat.inv()).as_rotvec()
             ori_diff = np.degrees((curr_quat * prev_quat.inv()).as_rotvec())
 
-            action = np.hstack([(curr_ee_pos - np.array(prev_ee_pos)) * 100, ori_diff]) * 30
+            # take a timstep only if the orientation is different enough from a previous step
+            if (np.any(np.abs(ori_diff) > [0.015, 0.015, 0.015])):
+                action = np.hstack([np.array(state_info['ee_position']) - np.array(prev_ee_pos), ori_diff])
+                prev_ee_pos = state_info['ee_position']
+                prev_ee_ori = state_info['ee_orientation']
 
-        robot_state = np.hstack([curr_ee_pos, curr_quat.as_quat()])
+                back_pointcloud = preprocess_point_cloud(back_pointcloud, use_cuda=True)[...,:3] # only get the xyz
+                action_arrays.append(action)
+                back_point_cloud_arrays.append(back_pointcloud)
+                state_arrays.append(robot_state)
 
-        prev_ee_pos = curr_ee_pos
-        prev_ee_ori = curr_ee_ori
-
-        back_pointcloud = preprocess_point_cloud(back_pointcloud, use_cuda=True)[...,:3] # only get the xyz
-        action_arrays.append(action)
-        back_point_cloud_arrays.append(back_pointcloud)
-        state_arrays.append(robot_state)
-
-        total_count += 1
+                total_count += 1
+        # if prev_ee_pos is None:
+        #     action = [0, 0, 0, 0, 0, 0] # Only happens for the first timestep
+        # else:
+        #     prev_quat = R.from_euler('xyz', prev_ee_ori, degrees=True)
+        #
+        #     ori_diff = np.degrees((curr_quat * prev_quat.inv()).as_rotvec())
+        #
+        #     action = np.hstack([(curr_ee_pos - np.array(prev_ee_pos)), ori_diff]) * 30
+        #
+        # robot_state = np.hstack([curr_ee_pos, curr_quat.as_quat()])
+        #
+        # prev_ee_pos = curr_ee_pos
+        # prev_ee_ori = curr_ee_ori
+        #
+        # back_pointcloud = preprocess_point_cloud(back_pointcloud, use_cuda=True)[...,:3] # only get the xyz
+        # action_arrays.append(action)
+        # back_point_cloud_arrays.append(back_pointcloud)
+        # state_arrays.append(robot_state)
+        #
+        # total_count += 1
 
 
     
