@@ -180,10 +180,9 @@ for demo_dir in demo_dirs:
 
 
 
-        curr_quat = R.from_euler('xyz', curr_ee_ori, degrees=True)
-        robot_state = np.hstack([curr_ee_pos, curr_quat.as_quat()])
+        robot_state = np.hstack([list(state_info['joints']['position'])[:7], curr_ee_pos])
         if prev_ee_pos is None:
-            action = [0, 0, 0, 0, 0, 0] # Only happens for the first timestep
+            action = [0, 0, 0] # Only happens for the first timestep
             prev_ee_pos = state_info['ee_position']
             prev_ee_ori = state_info['ee_orientation']
 
@@ -193,15 +192,18 @@ for demo_dir in demo_dirs:
             state_arrays.append(robot_state)
             total_count += 1
         else:
-            prev_quat = R.from_euler('xyz', prev_ee_ori, degrees=True)
-            # curr_quat = R.from_euler('xyz', prev_ee_ori, degrees=True)
+            # prev_quat = R.from_euler('xyz', prev_ee_ori, degrees=True)
+            # curr_quat = R.from_euler('xyz', curr_ee_ori, degrees=True)
 
+            ori_diff = [(curr_ee_ori[i] - prev_ee_ori[i] + 180) % 360 - 180 for i in range(len(curr_ee_ori))]
             # ori_diff = (prev_quat * curr_quat.inv()).as_rotvec()
-            ori_diff = np.degrees((curr_quat * prev_quat.inv()).as_rotvec())
 
             # take a timstep only if the orientation is different enough from a previous step
-            if (np.any(np.abs(ori_diff) > [0.015, 0.015, 0.015])):
-                action = np.hstack([np.array(state_info['ee_position']) - np.array(prev_ee_pos), ori_diff])
+            # if (np.any(np.abs(ori_diff) > [0.015, 0.015, 0.015])):
+            if (np.any(np.abs(ori_diff) > [0.85, 0.85, 0.85])):
+                ori_diff = R.from_euler('xyz', ori_diff, degrees=True).as_rotvec()
+                # action = np.hstack([np.array(state_info['ee_position']) - np.array(prev_ee_pos), ori_diff])
+                action = np.array(ori_diff)
                 prev_ee_pos = state_info['ee_position']
                 prev_ee_ori = state_info['ee_orientation']
 
@@ -232,7 +234,12 @@ for demo_dir in demo_dirs:
         #
         # total_count += 1
 
+    prev_ee_pos = None
 
+    if len(episode_ends_arrays) > 0:
+        print(f"used {total_count - episode_ends_arrays[-1]} out of {len(demo_timesteps)} frames")
+    else:
+        print(f"used {total_count} out of {len(demo_timesteps)} frames")
     
     episode_ends_arrays.append(total_count)
 
