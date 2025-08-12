@@ -262,7 +262,6 @@ def plot_sequence():
 
 def plot_one():
     pc_path = '/home/serg/projects/hitl-diffusion/data/back_depth.npy'
-    # pc_path = '/home/serg/projects/png_vision/test.npy'
         
     vis = Visualizer()
 

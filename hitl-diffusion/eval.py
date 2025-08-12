@@ -62,13 +62,14 @@ def main(cfg):
             print(f"Inference took {inference_time:.6f} seconds")
 
             action = result['action_pred'].cpu().numpy().tolist()[0]
-
+            
+            # Converting from quat back to deg
             new_action = []
             for i in range(len(action)):
-                rotvec = R.from_rotvec(action[i])
-                deg = rotvec.as_euler('xyz', degrees=True)
-                # deg = r_back.as_euler('xyz', degrees=True)
-                new_action.append(rotvec)
+                quat = action[i]
+                r_back = R.from_quat(quat)
+                deg = r_back.as_euler('xyz', degrees=True)
+                new_action.append(deg.tolist())
 
             response = json.dumps({"action": new_action})
             socket.send_string(response)
