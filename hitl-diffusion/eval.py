@@ -63,14 +63,14 @@ def main(cfg):
 
             action = result['action_pred'].cpu().numpy().tolist()[0]
 
-            # new_action = []
-            # for i in range(len(action)):
-            #     quat = action[i]
-            #     r_back = R.from_quat(quat)
-            #     deg = r_back.as_euler('xyz', degrees=True)
-            #     new_action.append(deg.tolist())
+            new_action = []
+            for i in range(len(action)):
+                rotvec = R.from_rotvec(action[i][3:])
+                deg = rotvec.as_euler('xyz', degrees=True)
+                # deg = r_back.as_euler('xyz', degrees=True)
+                new_action.append(deg.tolist())
 
-            response = json.dumps({"action": action})
+            response = json.dumps({"action": new_action})
             socket.send_string(response)
 
 if __name__ == "__main__":
