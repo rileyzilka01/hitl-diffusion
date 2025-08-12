@@ -111,7 +111,6 @@ def select_evenly_spaced(array, max_length=48):
     if n <= max_length:
         return array
     indices = np.linspace(0, n - 1, max_length, dtype=int)
-    print(indices)
     return [array[i] for i in indices]
    
 def preproces_image(image):
@@ -176,7 +175,6 @@ for demo_dir in demo_dirs:
 
         curr_ee_pos = np.array(state_info['ee_position'])
         curr_ee_ori = np.array(state_info['ee_orientation'])
-        robot_state = np.hstack([curr_ee_pos, curr_ee_ori])
 
         back_pointcloud = np.load(os.path.join(timestep_dir, 'back_depth.npy'))
 
@@ -210,18 +208,20 @@ for demo_dir in demo_dirs:
         #         state_arrays.append(robot_state)
         #
         #         total_count += 1
+        curr_quat = R.from_euler('xyz', curr_ee_ori, degrees=True)
         if prev_ee_pos is None:
             action = [0, 0, 0, 0, 0, 0] # Only happens for the first timestep
         else:
-            prev_quat = R.from_euler('xyz', curr_ee_ori, degrees=True)
-            curr_quat = R.from_euler('xyz', prev_ee_ori, degrees=True)
+            prev_quat = R.from_euler('xyz', prev_ee_ori, degrees=True)
 
-            ori_diff = (prev_quat * curr_quat.inv()).as_rotvec()
+            ori_diff = np.degrees((curr_quat * prev_quat.inv()).as_rotvec())
 
-            action = np.hstack([np.array(state_info['ee_position']) - np.array(prev_ee_pos), ori_diff])
+            action = np.hstack([(curr_ee_pos - np.array(prev_ee_pos)) * 100, ori_diff]) * 30
 
-        prev_ee_pos = state_info['ee_position']
-        prev_ee_ori = state_info['ee_orientation']
+        robot_state = np.hstack([curr_ee_pos, curr_quat.as_quat()])
+
+        prev_ee_pos = curr_ee_pos
+        prev_ee_ori = curr_ee_ori
 
         back_pointcloud = preprocess_point_cloud(back_pointcloud, use_cuda=True)[...,:3] # only get the xyz
         action_arrays.append(action)
