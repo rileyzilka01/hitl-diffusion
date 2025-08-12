@@ -20,6 +20,8 @@ import json
 import numpy as np
 import time
 
+from scipy.spatial.transform import Rotation as R
+
 OmegaConf.register_new_resolver("eval", eval, replace=True)
     
 
@@ -48,7 +50,7 @@ def main(cfg):
                 continue
 
             obs_dict = {
-                "point_cloud": torch.tensor(np.expand_dims(data['point_cloud'], axis=0)).cuda(),
+                "point_cloud": torch.tensor(np.expand_dims(data['back_point_cloud'], axis=0)).cuda(),
                 "agent_pos": torch.tensor(np.expand_dims(data['agent_pos'], axis=0)).cuda()
             }
 
@@ -59,7 +61,15 @@ def main(cfg):
             inference_time = end_time - start_time
             print(f"Inference took {inference_time:.6f} seconds")
 
-            action = result['action_pred'].cpu().numpy().tolist()
+            action = result['action_pred'].cpu().numpy().tolist()[0]
+
+            # new_action = []
+            # for i in range(len(action)):
+            #     quat = action[i]
+            #     r_back = R.from_quat(quat)
+            #     deg = r_back.as_euler('xyz', degrees=True)
+            #     new_action.append(deg.tolist())
+
             response = json.dumps({"action": action})
             socket.send_string(response)
 

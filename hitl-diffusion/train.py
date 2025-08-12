@@ -363,8 +363,9 @@ class TrainHITLWorkspace:
             with torch.no_grad():
                 result = self.policy.predict_action(data)
 
-            # print("Action:", result['action'])
-            # print("Action Prediction:", result['action_pred'])
+
+            print("Action:", result['action'])
+            print("Action Prediction:", result['action_pred'])
 
         else:
             obs_dict = {
