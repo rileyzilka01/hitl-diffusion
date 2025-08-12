@@ -66,9 +66,9 @@ def main(cfg):
             new_action = []
             for i in range(len(action)):
                 rotvec = R.from_rotvec(action[i][3:])
-                deg = rotvec.as_euler('xyz', degrees=True)
+                # deg = rotvec.as_euler('xyz', degrees=True)
                 # deg = r_back.as_euler('xyz', degrees=True)
-                new_action.append(deg.tolist())
+                new_action.append(rotvec)
 
             response = json.dumps({"action": new_action})
             socket.send_string(response)
