@@ -102,7 +102,7 @@ training:
   device: "cuda:0"
   seed: 42
   debug: False # This will tell the training runner to use small epoch and paramaters for a quick test
-  resume: True # Use checkpoint or not if it exists
+  resume: False # Use checkpoint or not if it exists
   lr_scheduler: cosine
   lr_warmup_steps: 500
   num_epochs: 3000
