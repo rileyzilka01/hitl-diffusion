@@ -65,12 +65,19 @@ def preprocess_point_cloud(points, use_cuda=True):
         ]
 
     else:
-        # Short Unoriented
+        # Tall Unoriented
         WORK_SPACE = [
             [-0.4, 0.4],
-            [-1.1, 1],
-            [-0.4, 1.2]
+            [-0.4, 0.4],
+            [0.5, 1.5]
         ]
+
+        # Short Unoriented
+        # WORK_SPACE = [
+        #     [-0.4, 0.4],
+        #     [-1.1, 1],
+        #     [-0.4, 1.2]
+        # ]
 
     points = points[np.where(
         (points[..., 0] > WORK_SPACE[0][0]) & (points[..., 0] < WORK_SPACE[0][1]) &

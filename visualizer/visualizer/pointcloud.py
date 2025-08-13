@@ -261,7 +261,7 @@ def plot_sequence():
     vis.visualize_pointclouds(pcs, color=color)
 
 def plot_one():
-    pc_path = '/home/rzilka/png_vision/data/block-joy-short/0/0/depth.npy'
+    pc_path = '/home/rzilka/png_vision/data/block-joy-tall/0/0/depth.npy'
         
     vis = Visualizer()
 
@@ -297,10 +297,17 @@ def plot_one():
     # ]
 
     # Short unoriented
+    # WORK_SPACE = [
+    #     [-0.4, 0.4],
+    #     [-1.1, 1],
+    #     [-0.4, 1.2]
+    # ]
+
+    # Tall unoriented
     WORK_SPACE = [
         [-0.4, 0.4],
-        [-1.1, 1],
-        [-0.4, 1.2]
+        [-0.4, 0.4],
+        [0.5, 1.5]
     ]
 
     pc = pc[np.where(
