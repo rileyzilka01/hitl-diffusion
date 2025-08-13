@@ -67,9 +67,10 @@ def main(cfg):
             new_action = []
             for i in range(len(action)):
                 quat = action[i]
-                r_back = R.from_quat(quat)
-                deg = r_back.as_euler('xyz', degrees=True)
-                new_action.append(deg.tolist())
+                r_back = R.from_rotvec(quat)
+                deg = r_back.as_euler('xyz', degrees=True).tolist()
+                # new_action.append(deg.tolist())
+                new_action.append(deg)
 
             response = json.dumps({"action": new_action})
             socket.send_string(response)
