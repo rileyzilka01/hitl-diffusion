@@ -261,41 +261,47 @@ def plot_sequence():
     vis.visualize_pointclouds(pcs, color=color)
 
 def plot_one():
-    pc_path = '/home/serg/projects/hitl-diffusion/data/back_depth.npy'
-    # pc_path = '/home/serg/projects/png_vision/test.npy'
+    # pc_path = '/home/serg/projects/hitl-diffusion/data/back_depth.npy'
+    pc_path = '/home/serg/projects/png_vision/data/block_full/0/0/back_depth.npy'
         
     vis = Visualizer()
 
     pc = np.load(pc_path)
     pc = pc[...,:3]
+    print(pc)
 
-    extrinsics_matrix = get_homogenous_matrix()
-
-    # Center the points about the origin
-    # centroid = np.mean(pc[..., :3], axis=0)
-    # pc = pc[..., :3] - centroid
-
-    # scale
-    point_xyz = pc[..., :3]
-    point_homogeneous = np.hstack((point_xyz, np.ones((point_xyz.shape[0], 1))))
-    point_homogeneous = np.dot(point_homogeneous, extrinsics_matrix)
-    pc[..., :3] = point_homogeneous[..., :3]
-
-    WORK_SPACE = [
-        [-0.6, 0.5],
-        [0.2, 1.4],
-        [-0.4, 0]
-    ]
-
-    pc = pc[np.where(
-        (pc[..., 0] > WORK_SPACE[0][0]) & (pc[..., 0] < WORK_SPACE[0][1]) &
-        (pc[..., 1] > WORK_SPACE[1][0]) & (pc[..., 1] < WORK_SPACE[1][1]) &
-        (pc[..., 2] > WORK_SPACE[2][0]) & (pc[..., 2] < WORK_SPACE[2][1])
-    )]
-
-
-    pc = pc[..., :3] - [-0.03871111,  0.5306654,  -0.32995403]
-    pc, sample_indices = vis.farthest_point_sampling(pc, use_cuda=True)
+    # extrinsics_matrix = get_homogenous_matrix()
+    #
+    # # Center the points about the origin
+    # # centroid = np.mean(pc[..., :3], axis=0)
+    # # pc = pc[..., :3] - centroid
+    #
+    # # scale
+    # point_xyz = pc[..., :3]
+    # point_homogeneous = np.hstack((point_xyz, np.ones((point_xyz.shape[0], 1))))
+    # point_homogeneous = np.dot(point_homogeneous, extrinsics_matrix)
+    # pc[..., :3] = point_homogeneous[..., :3]
+    #42
+    # WORK_SPACE = [
+    #     [-0.6, 0.5],
+    #     [0.2, 1.4],
+    #     [-0.4, 0]
+    # ]
+    # WORK_SPACE = [
+    #     [-2, 2],
+    #     [-2, 2],
+    #     [-2, 2]
+    # ]
+    #
+    # pc = pc[np.where(
+    #     (pc[..., 0] > WORK_SPACE[0][0]) & (pc[..., 0] < WORK_SPACE[0][1]) &
+    #     (pc[..., 1] > WORK_SPACE[1][0]) & (pc[..., 1] < WORK_SPACE[1][1]) &
+    #     (pc[..., 2] > WORK_SPACE[2][0]) & (pc[..., 2] < WORK_SPACE[2][1])
+    # )]
+    #
+    #
+    # pc = pc[..., :3] - [-0.03871111,  0.5306654,  -0.32995403]
+    # pc, sample_indices = vis.farthest_point_sampling(pc, use_cuda=True)
 
     color:tuple=None
     vis.visualize_pointcloud(pc, color=color)

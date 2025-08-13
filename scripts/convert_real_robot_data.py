@@ -16,96 +16,6 @@ import pickle
 from scipy.spatial.transform import Rotation as R
 
 
-def farthest_point_sampling(points, num_points=1024, use_cuda=True):
-    K = [num_points]
-    if use_cuda:
-        points = torch.from_numpy(points).cuda()
-        sampled_points, indices = torch3d_ops.sample_farthest_points(points=points.unsqueeze(0), K=K)
-        sampled_points = sampled_points.squeeze(0)
-        sampled_points = sampled_points.cpu().numpy()
-    else:
-        points = torch.from_numpy(points)
-        sampled_points, indices = torch3d_ops.sample_farthest_points(points=points.unsqueeze(0), K=K)
-        sampled_points = sampled_points.squeeze(0)
-        sampled_points = sampled_points.numpy()
-
-    return sampled_points, indices
-
-def preprocess_point_cloud(pc, use_cuda=True):
-    num_points = 1024
-    extrinsics_matrix = get_homogenous_matrix()
-
-    # scale
-    point_xyz = pc[..., :3]
-    point_homogeneous = np.hstack((point_xyz, np.ones((point_xyz.shape[0], 1))))
-    point_homogeneous = np.dot(point_homogeneous, extrinsics_matrix)
-    point_xyz = point_homogeneous[..., :-1]
-    pc[..., :3] = point_xyz
-
-    # Crop
-    WORK_SPACE = [
-        [-0.6, 0.5],
-        [0.2, 1.4],
-        [-0.4, 0]
-    ]
-
-    pc = pc[np.where(
-        (pc[..., 0] > WORK_SPACE[0][0]) & (pc[..., 0] < WORK_SPACE[0][1]) &
-        (pc[..., 1] > WORK_SPACE[1][0]) & (pc[..., 1] < WORK_SPACE[1][1]) &
-        (pc[..., 2] > WORK_SPACE[2][0]) & (pc[..., 2] < WORK_SPACE[2][1])
-    )]
-
-
-    pc = pc[..., :3] - [-0.03871111,  0.5306654,  -0.32995403]
-    pc, sample_indices = farthest_point_sampling(pc, use_cuda=True)
-
-    return pc
-
-def get_homogenous_matrix():
-    rx_deg = 120  # Rotation around X
-    ry_deg = 5  # Rotation around Y
-    rz_deg = 0  # Rotation around Z
-
-    # Convert to radians
-    rx = np.radians(rx_deg)
-    ry = np.radians(ry_deg)
-    rz = np.radians(rz_deg)
-
-    # Rotation matrix around X-axis
-    Rx = np.array([
-        [1, 0,          0,           0],
-        [0, np.cos(rx), -np.sin(rx), 0],
-        [0, np.sin(rx), np.cos(rx),  0],
-        [0, 0,          0,           1]
-    ])
-
-    # Rotation matrix around Y-axis
-    Ry = np.array([
-        [np.cos(ry),  0, np.sin(ry), 0],
-        [0,           1, 0,          0],
-        [-np.sin(ry), 0, np.cos(ry), 0],
-        [0,           0, 0,          1]
-    ])
-
-    # Rotation matrix around Z-axis
-    Rz = np.array([
-        [np.cos(rz), -np.sin(rz), 0, 0],
-        [np.sin(rz),  np.cos(rz), 0, 0],
-        [0,           0,          1, 0],
-        [0,           0,          0, 1]
-    ])
-
-    # Original extrinsics matrix (identity in this case)
-    extrinsics_matrix = np.eye(4)
-
-    # Combine rotations (Z * Y * X) — typical convention (can change based on your coordinate system)
-    rotation_combined = Rz @ Ry @ Rx
-
-    # Apply rotation to extrinsics
-    rotated_extrinsics = rotation_combined @ extrinsics_matrix
-
-    return rotated_extrinsics
-
 def select_evenly_spaced(array, max_length=48):
     n = len(array)
     if n <= max_length:
@@ -113,19 +23,7 @@ def select_evenly_spaced(array, max_length=48):
     indices = np.linspace(0, n - 1, max_length, dtype=int)
     return [array[i] for i in indices]
    
-def preproces_image(image):
-    img_size = 84
-    
-    image = image.astype(np.float32)
-    image = torch.from_numpy(image).cuda()
-    image = image.permute(2, 0, 1) # HxWx4 -> 4xHxW
-    image = torchvision.transforms.functional.resize(image, (img_size, img_size))
-    image = image.permute(1, 2, 0) # 4xHxW -> HxWx4
-    image = image.cpu().numpy()
-    return image
-
-
-expert_data_path = '/home/serg/projects/png_vision/data/bowl'
+expert_data_path = '/home/serg/projects/png_vision/data/block_full/'
 save_data_path = '/home/serg/projects/hitl-diffusion/hitl-diffusion/data/hitl_block.zarr'
 dirs = os.listdir(expert_data_path)
 dirs = sorted([int(d) for d in dirs])
@@ -134,12 +32,7 @@ demo_dirs = [os.path.join(expert_data_path, str(d)) for d in dirs if os.path.isd
 
 # storage
 total_count = 0
-back_rgb_arrays = []
-wrist_rgb_arrays = []
-# img_arrays = []
 back_point_cloud_arrays = []
-wrist_point_cloud_arrays = []
-# depth_arrays = []
 state_arrays = []
 action_arrays = []
 episode_ends_arrays = []
@@ -179,15 +72,15 @@ for demo_dir in demo_dirs:
         back_pointcloud = np.load(os.path.join(timestep_dir, 'back_depth.npy'))
 
 
-
         robot_state = np.hstack([list(state_info['joints']['position'])[:7], curr_ee_pos])
         if prev_ee_pos is None:
             action = [0, 0, 0] # Only happens for the first timestep
             prev_ee_pos = state_info['ee_position']
             prev_ee_ori = state_info['ee_orientation']
 
-            back_pointcloud = preprocess_point_cloud(back_pointcloud, use_cuda=True)[...,:3] # only get the xyz
             action_arrays.append(action)
+            if len(back_pointcloud) == 1025:
+                back_pointcloud = back_pointcloud[1:, ...]
             back_point_cloud_arrays.append(back_pointcloud)
             state_arrays.append(robot_state)
             total_count += 1
@@ -207,8 +100,10 @@ for demo_dir in demo_dirs:
                 prev_ee_pos = state_info['ee_position']
                 prev_ee_ori = state_info['ee_orientation']
 
-                back_pointcloud = preprocess_point_cloud(back_pointcloud, use_cuda=True)[...,:3] # only get the xyz
                 action_arrays.append(action)
+                # TODO: gross temp fix
+                if len(back_pointcloud) == 1025:
+                    back_pointcloud = back_pointcloud[1:, ...]
                 back_point_cloud_arrays.append(back_pointcloud)
                 state_arrays.append(robot_state)
 
