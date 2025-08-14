@@ -161,7 +161,8 @@ class PointNetEncoderXYZ(nn.Module):
         if not use_projection:
             self.final_projection = nn.Identity()
             cprint("[PointNetEncoderXYZ] not use projection", "yellow")
-            
+        
+        # Set this to True to enable pointcloud gradient and importance graph
         VIS_WITH_GRAD_CAM = False
         if VIS_WITH_GRAD_CAM:
             self.gradient = None
@@ -193,6 +194,17 @@ class PointNetEncoderXYZ(nn.Module):
         plt.title("Gradient-based Importance of Points") 
         plt.show() 
 
+
+        # Uncomment to show the gradient of pointcolud (ex which points in the cloud have the highest weights)
+        # pc = self.input_pointcloud[0].cpu().numpy()  # [N, 3]
+        # weights = self.gradient[0].norm(dim=1).cpu().numpy()  # [N]
+
+        # fig = plt.figure()
+        # ax = fig.add_subplot(111, projection='3d')
+        # sc = ax.scatter(pc[:,0], pc[:,1], pc[:,2], c=weights, cmap='viridis')
+        # plt.colorbar(sc)
+        # plt.title("Gradient-based Importance of Points")
+        # plt.show()
 
     def save_feature(self, module, input, output):
         """
