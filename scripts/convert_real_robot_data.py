@@ -65,11 +65,18 @@ def preprocess_point_cloud(points, use_cuda=True):
         ]
 
     else:
-        # Tall Unoriented
+        # # Tall Unoriented
+        # WORK_SPACE = [
+        #     [-0.4, 0.4],
+        #     [-0.4, 0.4],
+        #     [0.5, 1.5]
+        # ]
+
+        # Medium
         WORK_SPACE = [
             [-0.4, 0.4],
-            [-0.4, 0.4],
-            [0.5, 1.5]
+            [-1.1, 1],
+            [-0.4, 1.4]
         ]
 
         # Short Unoriented
@@ -170,7 +177,7 @@ if len(sys.argv) < 3:
     print("Usage: python scripts/convert_real_robot_data.py <input_dataset_name> <output_dataset_name>")
     sys.exit(1)
 
-expert_data_path = f'/home/rzilka/hitl-diffusion/data/{sys.argv[1]}'
+expert_data_path = f'/home/rzilka/png_vision/data/{sys.argv[1]}'
 save_data_path = f'/home/rzilka/hitl-diffusion/hitl-diffusion/data/{sys.argv[2]}.zarr'
 dirs = os.listdir(expert_data_path)
 dirs = sorted([int(d) for d in dirs])
@@ -205,7 +212,7 @@ for demo_dir in demo_dirs:
     cprint('Processing {}'.format(demo_dir), 'green')
 
     demo_timesteps = sorted([int(d) for d in os.listdir(demo_dir)])
-    demo_timesteps = select_evenly_spaced(demo_timesteps, max_length=64)
+    demo_timesteps = select_evenly_spaced(demo_timesteps, max_length=128)
 
     # For getting the difference instead of absolute orientation
     prev_ee_orientation = None
@@ -243,7 +250,7 @@ for demo_dir in demo_dirs:
         action = r.as_quat()
 
         obs_pointcloud = np.load(os.path.join(timestep_dir, 'depth.npy'), allow_pickle=True)
-        obs_pointcloud = preprocess_point_cloud(obs_pointcloud, use_cuda=True)
+        # obs_pointcloud = preprocess_point_cloud(obs_pointcloud, use_cuda=True)
 
         # img_arrays.append(obs_image)
         action_arrays.append(action)
