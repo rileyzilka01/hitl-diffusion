@@ -71,8 +71,9 @@ for demo_dir in demo_dirs:
 
         back_pointcloud = np.load(os.path.join(timestep_dir, 'back_depth.npy'))
 
+        gripper = 1 if state_info['joints']['position'][7] > 0.3 else 0
 
-        robot_state = np.hstack([list(state_info['joints']['position'])[:7], curr_ee_pos])
+        robot_state = np.hstack([list(state_info['joints']['position'])[:7], gripper, curr_ee_pos])
         if prev_ee_pos is None:
             action = [0, 0, 0] # Only happens for the first timestep
             prev_ee_pos = state_info['ee_position']
