@@ -5,14 +5,23 @@ task_name: block
 shape_meta: &shape_meta
   # acceptable types: rgb, low_dim
   obs:
-    point_cloud:
+    back_point_cloud:
       shape: [1024, 3]
       type: point_cloud
+    wrist_point_cloud:
+      shape: [1024, 3]
+      type: point_cloud
+    back_rgb:
+        shape: [3, 640, 480]
+        type: rgb
+    wrist_rgb:
+        shape: [3, 640, 480]
+        type: rgb
     agent_pos:
-      shape: [10] # size of the robot state array (7 for joint pos and 1 for gripper position and 3 for ee_position)
+      shape: [13] # 6 for ee pos and orientation + 7 for joint positions
       type: low_dimx
   action:
-    shape: [3] # size of the action array (4 for ee_orientation in qx, qy, qz, qw)
+    shape: [6] # size of the action array (3 for ee_pose)
 
 env_runner: null # Null because we dont need any simulation environments since were in the real world
 

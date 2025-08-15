@@ -40,6 +40,7 @@ class HITL(BasePolicy):
             use_pc_color=False,
             pointnet_type="pointnet",
             pointcloud_encoder_cfg=None,
+            rgb_encoder_cfg=None,
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -62,6 +63,7 @@ class HITL(BasePolicy):
             img_crop_shape=crop_shape,
             out_channel=encoder_output_dim,
             pointcloud_encoder_cfg=pointcloud_encoder_cfg,
+            rgb_encoder_cfg=rgb_encoder_cfg,
             use_pc_color=use_pc_color,
             pointnet_type=pointnet_type,
         )
@@ -287,7 +289,7 @@ class HITL(BasePolicy):
                 # reshape back to B, Do
                 global_cond = nobs_features.reshape(batch_size, -1)
             # this_n_point_cloud = this_nobs['imagin_robot'].reshape(batch_size,-1, *this_nobs['imagin_robot'].shape[1:])
-            this_n_point_cloud = this_nobs['point_cloud'].reshape(batch_size,-1, *this_nobs['point_cloud'].shape[1:])
+            this_n_point_cloud = this_nobs['back_point_cloud'].reshape(batch_size,-1, *this_nobs['back_point_cloud'].shape[1:])
             this_n_point_cloud = this_n_point_cloud[..., :3]
         else:
             # reshape B, T, ... to B*T

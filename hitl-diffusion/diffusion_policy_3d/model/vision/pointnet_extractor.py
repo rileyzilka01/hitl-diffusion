@@ -6,7 +6,6 @@ import copy
 
 from typing import Optional, Dict, Tuple, Union, List, Type
 from termcolor import cprint
-import matplotlib.pyplot as plt
 
 
 def create_mlp(
@@ -48,64 +47,6 @@ def create_mlp(
         modules.append(nn.Tanh())
     return modules
 
-
-
-
-class PointNetEncoderXYZRGB(nn.Module):
-    """Encoder for Pointcloud
-    """
-
-    def __init__(self,
-                 in_channels: int,
-                 out_channels: int=1024,
-                 use_layernorm: bool=False,
-                 final_norm: str='none',
-                 use_projection: bool=True,
-                 **kwargs
-                 ):
-        """_summary_
-
-        Args:
-            in_channels (int): feature size of input (3 or 6)
-            input_transform (bool, optional): whether to use transformation for coordinates. Defaults to True.
-            feature_transform (bool, optional): whether to use transformation for features. Defaults to True.
-            is_seg (bool, optional): for segmentation or classification. Defaults to False.
-        """
-        super().__init__()
-        block_channel = [64, 128, 256, 512]
-        cprint("pointnet use_layernorm: {}".format(use_layernorm), 'cyan')
-        cprint("pointnet use_final_norm: {}".format(final_norm), 'cyan')
-        
-        self.mlp = nn.Sequential(
-            nn.Linear(in_channels, block_channel[0]),
-            nn.LayerNorm(block_channel[0]) if use_layernorm else nn.Identity(),
-            nn.ReLU(),
-            nn.Linear(block_channel[0], block_channel[1]),
-            nn.LayerNorm(block_channel[1]) if use_layernorm else nn.Identity(),
-            nn.ReLU(),
-            nn.Linear(block_channel[1], block_channel[2]),
-            nn.LayerNorm(block_channel[2]) if use_layernorm else nn.Identity(),
-            nn.ReLU(),
-            nn.Linear(block_channel[2], block_channel[3]),
-        )
-        
-       
-        if final_norm == 'layernorm':
-            self.final_projection = nn.Sequential(
-                nn.Linear(block_channel[-1], out_channels),
-                nn.LayerNorm(out_channels)
-            )
-        elif final_norm == 'none':
-            self.final_projection = nn.Linear(block_channel[-1], out_channels)
-        else:
-            raise NotImplementedError(f"final_norm: {final_norm}")
-         
-    def forward(self, x):
-        x = self.mlp(x)
-        x = torch.max(x, 1)[0]
-        x = self.final_projection(x)
-        return x
-    
 
 class PointNetEncoderXYZ(nn.Module):
     """Encoder for Pointcloud
@@ -161,8 +102,7 @@ class PointNetEncoderXYZ(nn.Module):
         if not use_projection:
             self.final_projection = nn.Identity()
             cprint("[PointNetEncoderXYZ] not use projection", "yellow")
-        
-        # Set this to True to enable pointcloud gradient and importance graph
+            
         VIS_WITH_GRAD_CAM = False
         if VIS_WITH_GRAD_CAM:
             self.gradient = None
@@ -222,6 +162,61 @@ class PointNetEncoderXYZ(nn.Module):
         self.input_pointcloud = input[0].detach()
 
     
+_encoders = {'resnet34' : resnet34, 'resnet18' : resnet18, }
+_transforms = {
+	'resnet34' :
+		transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406],
+                             [0.229, 0.224, 0.225])
+    ]),
+    'resnet18' :
+		transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406],
+                             [0.229, 0.224, 0.225])
+    ]),
+}
+
+class ImgEncoder(nn.Module):
+    def __init__(self, encoder_type):
+        super(ImgEncoder, self).__init__()
+        self.encoder_type = encoder_type
+        if self.encoder_type in _encoders :
+            self.model = _encoders[encoder_type](pretrained=True)
+        else :
+            print("Please enter a valid encoder type")
+            raise Exception
+        for param in self.model.parameters():
+            param.requires_grad = False
+        if self.encoder_type in _encoders :
+            num_ftrs = self.model.fc.in_features
+            self.num_ftrs = num_ftrs
+            self.model.fc = Identity() # fc layer is replaced with identity
+
+    def forward(self, x):
+        x = self.model(x)
+        return x
+
+    # the transform is resize - center crop - normalize (imagenet normalize) No data aug here
+    def get_transform(self):
+        return _transforms[self.encoder_type]
+
+    def get_features(self, x):
+        with torch.no_grad():
+            z = self.model(x)
+        return z.cpu().data.numpy() ### Can't store everything in GPU :/
+
+class Identity(nn.Module):
+    def __init__(self):
+        super(Identity, self).__init__()
+
+    def forward(self, x):
+        return x
 
 
 class DP3Encoder(nn.Module):
@@ -281,8 +276,7 @@ class DP3Encoder(nn.Module):
         self.state_mlp = nn.Sequential(*create_mlp(self.state_shape[0], output_dim, net_arch, state_mlp_activation_fn))
 
         cprint(f"[DP3Encoder] output dim: {self.n_output_channels}", "red")
-
-
+    
     def forward(self, observations: Dict) -> torch.Tensor:
         points = observations[self.point_cloud_key]
         assert len(points.shape) == 3, cprint(f"point cloud shape: {points.shape}, length should be 3", "red")

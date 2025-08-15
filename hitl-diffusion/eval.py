@@ -18,9 +18,6 @@ from train import TrainHITLWorkspace
 import zmq
 import json
 import numpy as np
-import time
-
-from scipy.spatial.transform import Rotation as R
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
     
@@ -37,7 +34,7 @@ def main(cfg):
     if cfg.server:
         context = zmq.Context()
         socket = context.socket(zmq.REP)
-        socket.bind("tcp://192.168.1.161:5555")  # Listen on all interfaces
+        socket.bind("tcp://192.168.1.214:5555")  # Listen on all interfaces
 
         print("Server up!")
 
@@ -50,29 +47,15 @@ def main(cfg):
                 continue
 
             obs_dict = {
-                "point_cloud": torch.tensor(np.expand_dims(data['back_point_cloud'], axis=0)).cuda(),
+                "point_cloud": torch.tensor(np.expand_dims(data['point_cloud'], axis=0)).cuda(),
                 "agent_pos": torch.tensor(np.expand_dims(data['agent_pos'], axis=0)).cuda()
             }
 
-            start_time = time.time()
             with torch.no_grad():
                 result = workspace.model_inference(server_call=True, data=obs_dict)
-            end_time = time.time()
-            inference_time = end_time - start_time
-            print(f"Inference took {inference_time:.6f} seconds")
 
-            action = result['action_pred'].cpu().numpy().tolist()[0]
-            
-            # Converting from quat back to deg
-            new_action = []
-            for i in range(len(action)):
-                quat = action[i]
-                r_back = R.from_rotvec(quat)
-                deg = r_back.as_euler('xyz', degrees=True).tolist()
-                # new_action.append(deg.tolist())
-                new_action.append(deg)
-
-            response = json.dumps({"action": new_action})
+            action = result['action_pred'].cpu().numpy().tolist()
+            response = json.dumps({"action": action})
             socket.send_string(response)
 
 if __name__ == "__main__":
