@@ -281,7 +281,6 @@ class DP3Encoder(nn.Module):
         # points: B * 3 * (N + sum(Ni))
         # back_pn_feat = self.back_p_extractor(back_points)    # B * out_channel
         # wrist_pn_feat = self.wrist_p_extractor(wrist_points)    # B * out_channel
-        print(back_rgb.shape)
         back_in_feat = self.back_i_extractor(back_rgb)    # B * out_channel
         wrist_in_feat = self.wrist_i_extractor(wrist_rgb)    # B * out_channel
             

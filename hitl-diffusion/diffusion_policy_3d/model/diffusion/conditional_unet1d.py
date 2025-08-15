@@ -169,6 +169,7 @@ class ConditionalUnet1D(nn.Module):
         
         all_dims = [input_dim] + list(down_dims)
         start_dim = down_dims[0]
+        print("the dimensions are", all_dims)
 
         dsed = diffusion_step_embed_dim
         diffusion_step_encoder = nn.Sequential(
@@ -303,6 +304,8 @@ class ConditionalUnet1D(nn.Module):
         x = sample
         h = []
         for idx, (resnet, resnet2, downsample) in enumerate(self.down_modules):
+            print(global_feature.shape)
+            print(resnet, resnet2, downsample)
             if self.use_down_condition:
                 x = resnet(x, global_feature)
                 if idx == 0 and len(h_local) > 0:

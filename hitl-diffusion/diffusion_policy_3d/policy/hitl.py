@@ -58,6 +58,7 @@ class HITL(BasePolicy):
             
         obs_shape_meta = shape_meta['obs']
         obs_dict = dict_apply(obs_shape_meta, lambda x: x['shape'])
+        # TODO: tweak here
 
         obs_encoder = DP3Encoder(observation_space=obs_dict,
             img_crop_shape=crop_shape,
@@ -256,7 +257,6 @@ class HITL(BasePolicy):
 
     def compute_loss(self, batch):
         # normalize input
-
         nobs = self.normalizer.normalize(batch['obs'])
         nactions = self.normalizer['action'].normalize(batch['action'])
 
@@ -272,13 +272,13 @@ class HITL(BasePolicy):
         trajectory = nactions
         cond_data = trajectory
         
-       
         
         if self.obs_as_global_cond:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, 
                 lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))
             nobs_features = self.obs_encoder(this_nobs)
+            print(nobs_features.shape)
 
             if "cross_attention" in self.condition_type:
                 # treat as a sequence
