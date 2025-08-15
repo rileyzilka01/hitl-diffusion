@@ -64,15 +64,15 @@ class HitlDataset(BaseDataset):
             'agent_pos': self.replay_buffer['state'][...,:], # ee pose
             # 'back_point_cloud': self.replay_buffer['back_point_cloud'], # Colorless point cloud
             # 'wrist_point_cloud': self.replay_buffer['wrist_point_cloud'], # Colorless point cloud
-            'back_rgb': self.replay_buffer['back_rgb'], # Colorless point cloud
-            'wrist_rgb': self.replay_buffer['wrist_rgb'], # Colorless point cloud
+            # 'back_rgb': self.replay_buffer['back_rgb'], # Colorless point cloud
+            # 'wrist_rgb': self.replay_buffer['wrist_rgb'], # Colorless point cloud
         }
         normalizer = LinearNormalizer()
         normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
         # normalizer['back_point_cloud'] = SingleFieldLinearNormalizer.create_identity()
         # normalizer['wrist_point_cloud'] = SingleFieldLinearNormalizer.create_identity()
-        # normalizer['back_img'] = SingleFieldLinearNormalizer.create_identity()
-        # normalizer['wrist_img'] = SingleFieldLinearNormalizer.create_identity()
+        normalizer['back_rgb'] = SingleFieldLinearNormalizer.create_identity()
+        normalizer['wrist_rgb'] = SingleFieldLinearNormalizer.create_identity()
         return normalizer
 
     def __len__(self) -> int:

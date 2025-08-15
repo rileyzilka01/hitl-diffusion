@@ -28,6 +28,7 @@ def preproces_image(image):
     if image.max() > 1.0:
         image /= 255.0
 
+
     # Convert to torch tensor and channel-first
     image = torch.from_numpy(image).cuda()  # [H, W, C]
     image = image.permute(2, 0, 1)   # -> [C, H, W]
@@ -42,8 +43,9 @@ def preproces_image(image):
         mean=[0.485, 0.456, 0.406],
         std=[0.229, 0.224, 0.225]
     )
+    image = image.cpu().numpy()
 
-    return image.cpu().numpy()
+    return image
 
 
 
@@ -166,33 +168,10 @@ for demo_dir in demo_dirs:
         #
         # total_count += 1
 
-            ori_diff = (prev_ori * curr_ori.inv()).as_rotvec()
-
-            action = np.hstack([np.array(state_info['ee_position']) - np.array(prev_ee_pos), ori_diff])
-
-        prev_ee_pos = state_info['ee_position']
-        prev_ee_ori = state_info['ee_orientation']
-
-        back_pointcloud = np.load(os.path.join(timestep_dir, 'back_depth.npy'))
-        wrist_pointcloud = np.load(os.path.join(timestep_dir, 'wrist_depth.npy'))
-        # back_pointcloud = preprocess_point_cloud(back_pointcloud, use_cuda=True)[...,:3] # only get the xyz
-        # wrist_pointcloud = preprocess_point_cloud(wrist_pointcloud, use_cuda=True)[...,:3] # only get the xyz
-
-        back_rgb = cv2.imread(os.path.join(timestep_dir, 'back_rgb.png'))  # BGR format
-        back_rgb = cv2.cvtColor(back_rgb, cv2.COLOR_BGR2RGB)
-        wrist_rgb = cv2.imread(os.path.join(timestep_dir, 'wrist_rgb.png'))  # BGR format
-        wrist_rgb = cv2.cvtColor(wrist_rgb, cv2.COLOR_BGR2RGB)
-
-        back_rgb_arrays.append(preproces_image(back_rgb))
-        wrist_rgb_arrays.append(preproces_image(wrist_rgb))
-
-        action_arrays.append(action)
-        # back_point_cloud_arrays.append(back_pointcloud)
-        # wrist_point_cloud_arrays.append(wrist_pointcloud)
-        # depth_arrays.append(obs_depth)
-        state_arrays.append(robot_state)
+    prev_ee_ori = None
+    prev_ee_pos = None
     
-    episode_ends_arrays.append(len(demo_timesteps))
+    episode_ends_arrays.append(total_count)
 
 
 # create zarr file
@@ -209,7 +188,7 @@ wrist_rgb_arrays = np.stack(wrist_rgb_arrays, axis=0)
 # depth_arrays = np.stack(depth_arrays, axis=0)
 action_arrays = np.stack(action_arrays, axis=0)
 state_arrays = np.stack(state_arrays, axis=0)
-episode_ends_arrays = np.cumsum(episode_ends_arrays)
+episode_ends_arrays = np.array(episode_ends_arrays)
 
 compressor = zarr.Blosc(cname='zstd', clevel=3, shuffle=1)
 back_rgb_chunk_size = (100, back_rgb_arrays.shape[1], back_rgb_arrays.shape[2], back_rgb_arrays.shape[3])
@@ -223,8 +202,8 @@ elif len(action_arrays.shape) == 3:
     action_chunk_size = (100, action_arrays.shape[1], action_arrays.shape[2])
 else:
     raise NotImplementedError
-zarr_data.create_dataset('back_rgb', data=back_rgb_arrays, chunks=back_rgb_chunk_size, dtype='uint8', overwrite=True, compressor=compressor)
-zarr_data.create_dataset('wrist_rgb', data=wrist_rgb_arrays, chunks=wrist_rgb_chunk_size, dtype='uint8', overwrite=True, compressor=compressor)
+zarr_data.create_dataset('back_rgb', data=back_rgb_arrays, chunks=back_rgb_chunk_size, dtype='float64', overwrite=True, compressor=compressor)
+zarr_data.create_dataset('wrist_rgb', data=wrist_rgb_arrays, chunks=wrist_rgb_chunk_size, dtype='float64', overwrite=True, compressor=compressor)
 # zarr_data.create_dataset('back_point_cloud', data=back_point_cloud_arrays, chunks=back_point_cloud_chunk_size, dtype='float64', overwrite=True, compressor=compressor)
 # zarr_data.create_dataset('wrist_point_cloud', data=wrist_point_cloud_arrays, chunks=wrist_point_cloud_chunk_size, dtype='float64', overwrite=True, compressor=compressor)
 # zarr_data.create_dataset('depth', data=depth_arrays, chunks=depth_chunk_size, dtype='float64', overwrite=True, compressor=compressor)

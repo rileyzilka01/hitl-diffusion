@@ -145,24 +145,25 @@ class PointNetEncoderXYZ(nn.Module):
 
     
 _encoders = {'resnet34' : resnet34, 'resnet18' : resnet18, }
-_transforms = {
-	'resnet34' :
-		transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406],
-                             [0.229, 0.224, 0.225])
-    ]),
-    'resnet18' :
-		transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406],
-                             [0.229, 0.224, 0.225])
-    ]),
-}
+# do the transforms beforehand
+# _transforms = {
+# 	'resnet34' :
+# 		transforms.Compose([
+#         transforms.Resize(256),
+#         transforms.CenterCrop(224),
+#         transforms.ToTensor(),
+#         transforms.Normalize([0.485, 0.456, 0.406],
+#                              [0.229, 0.224, 0.225])
+#     ]),
+#     'resnet18' :
+# 		transforms.Compose([
+#         transforms.Resize(256),
+#         transforms.CenterCrop(224),
+#         transforms.ToTensor(),
+#         transforms.Normalize([0.485, 0.456, 0.406],
+#                              [0.229, 0.224, 0.225])
+#     ]),
+# }
 
 class ImgEncoder(nn.Module):
     def __init__(self, encoder_type):
@@ -185,8 +186,6 @@ class ImgEncoder(nn.Module):
         return x
 
     # the transform is resize - center crop - normalize (imagenet normalize) No data aug here
-    def get_transform(self):
-        return _transforms[self.encoder_type]
 
     def get_features(self, x):
         with torch.no_grad():
@@ -250,7 +249,6 @@ class DP3Encoder(nn.Module):
             # self.wrist_p_extractor = PointNetEncoderXYZ(**pointcloud_encoder_cfg)
             self.back_i_extractor = ImgEncoder(**rgb_encoder_cfg)
             self.wrist_i_extractor = ImgEncoder(**rgb_encoder_cfg)
-            self.transforms = self.back_i_extractor.get_transform()
         else:
             raise NotImplementedError(f"pointnet_type: {pointnet_type}")
 
@@ -284,8 +282,8 @@ class DP3Encoder(nn.Module):
         # back_pn_feat = self.back_p_extractor(back_points)    # B * out_channel
         # wrist_pn_feat = self.wrist_p_extractor(wrist_points)    # B * out_channel
         print(back_rgb.shape)
-        back_in_feat = self.back_i_extractor(self.transforms(back_rgb))    # B * out_channel
-        wrist_in_feat = self.wrist_i_extractor(self.transforms(wrist_rgb))    # B * out_channel
+        back_in_feat = self.back_i_extractor(back_rgb)    # B * out_channel
+        wrist_in_feat = self.wrist_i_extractor(wrist_rgb)    # B * out_channel
             
         state = observations[self.state_key]
         state_feat = self.state_mlp(state)  # B * 64

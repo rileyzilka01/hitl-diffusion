@@ -6,10 +6,10 @@ shape_meta: &shape_meta
   # acceptable types: rgb, low_dim
   obs:
     wrist_rgb:
-      shape: [84, 84, 3]
+      shape: [3, 224, 224]
       type: rgb
     back_rgb:
-      shape: [84, 84, 3]
+      shape: [3, 224, 224]
       type: rgb
     agent_pos:
       shape: [11] # size of the robot state array (7 for joint pos and 1 for gripper position and 3 for ee_position)
