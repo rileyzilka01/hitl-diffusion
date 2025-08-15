@@ -5,12 +5,12 @@ task_name: block
 shape_meta: &shape_meta
   # acceptable types: rgb, low_dim
   obs:
-    back_point_cloud:
-      shape: [1024, 3]
-      type: point_cloud
-    wrist_point_cloud:
-      shape: [1024, 3]
-      type: point_cloud
+    # back_point_cloud:
+    #   shape: [1024, 3]
+    #   type: point_cloud
+    # wrist_point_cloud:
+    #   shape: [1024, 3]
+    #   type: point_cloud
     back_rgb:
         shape: [3, 640, 480]
         type: rgb
