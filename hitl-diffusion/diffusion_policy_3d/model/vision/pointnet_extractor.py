@@ -1,8 +1,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchvision import models, transforms
+from torchvision.models import resnet34, resnet18
 import torchvision
 import copy
+from PIL import Image
 
 from typing import Optional, Dict, Tuple, Union, List, Type
 from termcolor import cprint
@@ -124,27 +127,6 @@ class PointNetEncoderXYZ(nn.Module):
         for grad-cam
         """
         self.gradient = grad_output[0]
-        pc = self.input_pointcloud[0].cpu().numpy()  # [N, 3] 
-        weights = self.gradient[0].norm(dim=1).cpu().numpy()  # [N] 
- 
-        fig = plt.figure() 
-        ax = fig.add_subplot(111, projection='3d') 
-        sc = ax.scatter(pc[:,0], pc[:,1], pc[:,2], c=weights, cmap='viridis') 
-        plt.colorbar(sc) 
-        plt.title("Gradient-based Importance of Points") 
-        plt.show() 
-
-
-        # Uncomment to show the gradient of pointcolud (ex which points in the cloud have the highest weights)
-        # pc = self.input_pointcloud[0].cpu().numpy()  # [N, 3]
-        # weights = self.gradient[0].norm(dim=1).cpu().numpy()  # [N]
-
-        # fig = plt.figure()
-        # ax = fig.add_subplot(111, projection='3d')
-        # sc = ax.scatter(pc[:,0], pc[:,1], pc[:,2], c=weights, cmap='viridis')
-        # plt.colorbar(sc)
-        # plt.title("Gradient-based Importance of Points")
-        # plt.show()
 
     def save_feature(self, module, input, output):
         """
@@ -226,18 +208,24 @@ class DP3Encoder(nn.Module):
                  out_channel=256,
                  state_mlp_size=(64, 64), state_mlp_activation_fn=nn.ReLU,
                  pointcloud_encoder_cfg=None,
+                 rgb_encoder_cfg=None,
                  use_pc_color=False,
                  pointnet_type='pointnet',
                  ):
         super().__init__()
         self.imagination_key = 'imagin_robot'
         self.state_key = 'agent_pos'
-        self.point_cloud_key = 'point_cloud'
-        self.rgb_image_key = 'image'
+        self.back_point_cloud_key = 'back_point_cloud'
+        self.wrist_point_cloud_key = 'wrist_point_cloud'
+        self.back_rgb_key = 'back_rgb'
+        self.wrist_rgb_key = 'wrist_rgb'
         self.n_output_channels = out_channel
         
         self.use_imagined_robot = self.imagination_key in observation_space.keys()
-        self.point_cloud_shape = observation_space[self.point_cloud_key]
+        self.back_point_cloud_shape = observation_space[self.back_point_cloud_key]
+        self.wrist_point_cloud_shape = observation_space[self.wrist_point_cloud_key]
+        self.back_rgb_shape = observation_space[self.back_rgb_key]
+        self.wrist_rgb_shape = observation_space[self.wrist_rgb_key]
         self.state_shape = observation_space[self.state_key]
         if self.use_imagined_robot:
             self.imagination_shape = observation_space[self.imagination_key]
@@ -246,7 +234,10 @@ class DP3Encoder(nn.Module):
             
         
         
-        cprint(f"[DP3Encoder] point cloud shape: {self.point_cloud_shape}", "yellow")
+        cprint(f"[DP3Encoder] back point cloud shape: {self.back_point_cloud_shape}", "yellow")
+        cprint(f"[DP3Encoder] wrist point cloud shape: {self.wrist_point_cloud_shape}", "yellow")
+        cprint(f"[DP3Encoder] back rgb shape: {self.back_rgb_shape}", "yellow")
+        cprint(f"[DP3Encoder] wrist rgb shape: {self.wrist_rgb_shape}", "yellow")
         cprint(f"[DP3Encoder] state shape: {self.state_shape}", "yellow")
         cprint(f"[DP3Encoder] imagination point shape: {self.imagination_shape}", "yellow")
         
@@ -254,12 +245,12 @@ class DP3Encoder(nn.Module):
         self.use_pc_color = use_pc_color
         self.pointnet_type = pointnet_type
         if pointnet_type == "pointnet":
-            if use_pc_color:
-                pointcloud_encoder_cfg.in_channels = 6
-                self.extractor = PointNetEncoderXYZRGB(**pointcloud_encoder_cfg)
-            else:
-                pointcloud_encoder_cfg.in_channels = 3
-                self.extractor = PointNetEncoderXYZ(**pointcloud_encoder_cfg)
+            pointcloud_encoder_cfg.in_channels = 3
+            self.back_p_extractor = PointNetEncoderXYZ(**pointcloud_encoder_cfg)
+            self.wrist_p_extractor = PointNetEncoderXYZ(**pointcloud_encoder_cfg)
+            self.back_i_extractor = ImgEncoder(**rgb_encoder_cfg)
+            self.wrist_i_extractor = ImgEncoder(**rgb_encoder_cfg)
+            self.transforms = self.back_i_extractor.get_transform()
         else:
             raise NotImplementedError(f"pointnet_type: {pointnet_type}")
 
@@ -278,19 +269,26 @@ class DP3Encoder(nn.Module):
         cprint(f"[DP3Encoder] output dim: {self.n_output_channels}", "red")
     
     def forward(self, observations: Dict) -> torch.Tensor:
-        points = observations[self.point_cloud_key]
-        assert len(points.shape) == 3, cprint(f"point cloud shape: {points.shape}, length should be 3", "red")
+        back_points = observations[self.back_point_cloud_key]
+        wrist_points = observations[self.wrist_point_cloud_key]
+        back_rgb = observations[self.back_rgb_key]
+        wrist_rgb = observations[self.wrist_rgb_key]
+
+        assert len(back_points.shape) == 3, cprint(f"point cloud shape: {back_points.shape}, length should be 3", "red")
         if self.use_imagined_robot:
             img_points = observations[self.imagination_key][..., :points.shape[-1]] # align the last dim
             points = torch.concat([points, img_points], dim=1)
         
         # points = torch.transpose(points, 1, 2)   # B * 3 * N
         # points: B * 3 * (N + sum(Ni))
-        pn_feat = self.extractor(points)    # B * out_channel
+        back_pn_feat = self.back_p_extractor(back_points)    # B * out_channel
+        wrist_pn_feat = self.wrist_p_extractor(wrist_points)    # B * out_channel
+        back_in_feat = self.back_i_extractor(self.transforms(back_rgb))    # B * out_channel
+        wrist_in_feat = self.wrist_i_extractor(self.transforms(wrist_rgb))    # B * out_channel
             
         state = observations[self.state_key]
         state_feat = self.state_mlp(state)  # B * 64
-        final_feat = torch.cat([pn_feat, state_feat], dim=-1)
+        final_feat = torch.cat([back_pn_feat, wrist_pn_feat, back_in_feat, wrist_in_feat, state_feat], dim=-1)
         return final_feat
 
 
