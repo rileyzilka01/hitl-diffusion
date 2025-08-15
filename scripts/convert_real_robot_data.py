@@ -22,9 +22,20 @@ def select_evenly_spaced(array, max_length=48):
         return array
     indices = np.linspace(0, n - 1, max_length, dtype=int)
     return [array[i] for i in indices]
+
+def preproces_image(image):
+    img_size = 84
+    
+    image = image.astype(np.float32)
+    image = torch.from_numpy(image).cuda()
+    image = image.permute(2, 0, 1) # HxWx4 -> 4xHxW
+    image = torchvision.transforms.functional.resize(image, (img_size, img_size))
+    image = image.permute(1, 2, 0) # 4xHxW -> HxWx4
+    image = image.cpu().numpy()
+    return image
    
-expert_data_path = '/home/serg/projects/png_vision/data/block_full/'
-save_data_path = '/home/serg/projects/hitl-diffusion/hitl-diffusion/data/hitl_block.zarr'
+expert_data_path = '/home/serg/projects/png_vision/data/banana/'
+save_data_path = '/home/serg/projects/hitl-diffusion/hitl-diffusion/data/hitl_banana.zarr'
 dirs = os.listdir(expert_data_path)
 dirs = sorted([int(d) for d in dirs])
 
@@ -33,6 +44,9 @@ demo_dirs = [os.path.join(expert_data_path, str(d)) for d in dirs if os.path.isd
 # storage
 total_count = 0
 back_point_cloud_arrays = []
+wrist_point_cloud_arrays = []
+back_rgb_arrays = []
+wrist_rgb_arrays = []
 state_arrays = []
 action_arrays = []
 episode_ends_arrays = []
@@ -70,6 +84,7 @@ for demo_dir in demo_dirs:
         curr_ee_ori = np.array(state_info['ee_orientation'])
 
         back_pointcloud = np.load(os.path.join(timestep_dir, 'back_depth.npy'))
+        wrist_pointcloud = np.load(os.path.join(timestep_dir, 'wrist_depth.npy'))
 
         gripper = 1 if state_info['joints']['position'][7] > 0.3 else 0
 
