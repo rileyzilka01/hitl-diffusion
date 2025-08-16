@@ -363,21 +363,23 @@ class TrainHITLWorkspace:
             with torch.no_grad():
                 result = self.policy.predict_action(data)
 
-
             print("Action:", result['action'])
             print("Action Prediction:", result['action_pred'])
 
         else:
             obs_dict = {
-                "point_cloud": torch.randn(1, self.policy.n_obs_steps, 1024, 3).cuda(),  # dummy point cloud
+                "wrist_point_cloud": torch.randn(1, self.policy.n_obs_steps, 1024, 3).cuda(),  # dummy point cloud
+                "back_point_cloud": torch.randn(1, self.policy.n_obs_steps, 1024, 3).cuda(),  # dummy point cloud
+                "back_rgb": torch.randn(1, self.policy.n_obs_steps, 3, 640, 480).cuda(),  # dummy rgb
+                "back_rgb": torch.randn(1, self.policy.n_obs_steps, 3, 640, 480).cuda(),  # dummy rgb
                 "agent_pos": torch.randn(1, self.policy.n_obs_steps, 10).cuda() # Dummy robot pos
             }
 
             with torch.no_grad():
                 result = self.policy.predict_action(obs_dict)
 
-            # print("Action:", result['action'])
-            # print("Action Prediction:", result['action_pred'])
+            print("Action:", result['action'])
+            print("Action Prediction:", result['action_pred'])
         return result
         
     @property
@@ -450,7 +452,7 @@ class TrainHITLWorkspace:
         else:
             raise NotImplementedError(f"tag {tag} not implemented")
             
-            
+
 
     def load_payload(self, payload, exclude_keys=None, include_keys=None, **kwargs):
         if exclude_keys is None:

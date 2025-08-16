@@ -169,6 +169,7 @@ class ConditionalUnet1D(nn.Module):
         
         all_dims = [input_dim] + list(down_dims)
         start_dim = down_dims[0]
+        print("the dimensions are", all_dims)
 
         dsed = diffusion_step_embed_dim
         diffusion_step_encoder = nn.Sequential(
@@ -231,13 +232,7 @@ class ConditionalUnet1D(nn.Module):
 
         up_modules = nn.ModuleList([])
         for ind, (dim_in, dim_out) in enumerate(reversed(in_out[1:])):
-
-
             is_last = ind >= (len(in_out) - 1)
-        # reversed_pairs = list(reversed(in_out[1:]))
-        # n_up = len(reversed_pairs)
-        # for ind, (dim_in, dim_out) in enumerate(reversed_pairs):
-        #     is_last = (ind == n_up - 1)
             up_modules.append(nn.ModuleList([
                 ConditionalResidualBlock1D(
                     dim_out*2, dim_in, cond_dim=cond_dim,
@@ -309,6 +304,8 @@ class ConditionalUnet1D(nn.Module):
         x = sample
         h = []
         for idx, (resnet, resnet2, downsample) in enumerate(self.down_modules):
+            print(global_feature.shape)
+            print(resnet, resnet2, downsample)
             if self.use_down_condition:
                 x = resnet(x, global_feature)
                 if idx == 0 and len(h_local) > 0:
@@ -334,18 +331,14 @@ class ConditionalUnet1D(nn.Module):
             x = torch.cat((x, h.pop()), dim=1)
             if self.use_up_condition:
                 x = resnet(x, global_feature)
-                # if idx == len(self.up_modules) - 1 and len(h_local) > 0:
                 if idx == len(self.up_modules) and len(h_local) > 0:
                     x = x + h_local[1]
                 x = resnet2(x, global_feature)
             else:
                 x = resnet(x)
-                # if idx == len(self.up_modules) - 1 and len(h_local) > 0:
                 if idx == len(self.up_modules) and len(h_local) > 0:
                     x = x + h_local[1]
                 x = resnet2(x)
-            # if x.shape[-1] != 1:
-                # x = upsample(x)
             x = upsample(x)
 
 

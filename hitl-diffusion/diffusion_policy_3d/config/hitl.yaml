@@ -9,10 +9,10 @@ exp_name: "debug"
 server: false
 
 # horizon: 4
-horizon: 32
+horizon: 16
 n_obs_steps: 2
 # n_action_steps: 3
-n_action_steps: 16
+n_action_steps: 8
 n_latency_steps: 0
 dataset_obs_steps: ${n_obs_steps}
 keypoint_visible_rate: 1.0
@@ -22,7 +22,6 @@ policy:
   _target_: diffusion_policy_3d.policy.hitl.HITL
   use_point_crop: true
   condition_type: film
-  # condition_type: cross_attention_film
   use_down_condition: true
   use_mid_condition: true
   use_up_condition: true
@@ -69,6 +68,8 @@ policy:
     final_norm: layernorm # layernorm, none
     normal_channel: false
 
+  rgb_encoder_cfg:
+    encoder_type: resnet18
 
 ema:
   _target_: diffusion_policy_3d.model.diffusion.ema_model.EMAModel
@@ -102,7 +103,7 @@ optimizer:
 training:
   device: "cuda:0"
   seed: 42
-  debug: False # This will tell the training runner to use small epoch and paramaters for a quick test
+  debug: True # This will tell the training runner to use small epoch and paramaters for a quick test
   resume: True # Use checkpoint or not if it exists
   lr_scheduler: cosine
   lr_warmup_steps: 500
@@ -140,6 +141,9 @@ checkpoint:
 multi_run:
   run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
   wandb_name_base: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+
+rgb_encoder_cfg:
+  encoder_type: resnet18
 
 hydra:
   job:

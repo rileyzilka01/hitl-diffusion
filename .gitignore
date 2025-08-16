@@ -47,3 +47,5 @@ nohup.out
 output/
 
 real_robot_demo/
+
+*.zip

@@ -42,4 +42,4 @@ if __name__ == "__main__":
         sys.exit(1)
     
     path = sys.argv[1]
-    preview_zarr(path, max_elements=90)
+    preview_zarr(path)
