@@ -1,5 +1,6 @@
 from typing import Dict
 import math
+from numpy import diff
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -58,7 +59,6 @@ class HITL(BasePolicy):
             
         obs_shape_meta = shape_meta['obs']
         obs_dict = dict_apply(obs_shape_meta, lambda x: x['shape'])
-        # TODO: tweak here
 
         obs_encoder = DP3Encoder(observation_space=obs_dict,
             img_crop_shape=crop_shape,
@@ -79,13 +79,14 @@ class HITL(BasePolicy):
                 global_cond_dim = obs_feature_dim
             else:
                 global_cond_dim = obs_feature_dim * n_obs_steps
+
+        global_cond_dim = 2176
         
 
         self.use_pc_color = use_pc_color
         self.pointnet_type = pointnet_type
         cprint(f"[DiffusionUnetHybridPointcloudPolicy] use_pc_color: {self.use_pc_color}", "yellow")
         cprint(f"[DiffusionUnetHybridPointcloudPolicy] pointnet_type: {self.pointnet_type}", "yellow")
-
 
 
         model = ConditionalUnet1D(
@@ -278,7 +279,8 @@ class HITL(BasePolicy):
             this_nobs = dict_apply(nobs, 
                 lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))
             nobs_features = self.obs_encoder(this_nobs)
-            print(nobs_features.shape)
+            # print("nobs features")
+            # print(nobs_features.shape, batch_size)
 
             if "cross_attention" in self.condition_type:
                 # treat as a sequence
@@ -324,6 +326,8 @@ class HITL(BasePolicy):
 
         # Predict the noise residual
         
+        # print("SFOINBFOIDbnoifn")
+        # print(noisy_trajectory.shape, global_cond.shape)
         pred = self.model(sample=noisy_trajectory, 
                         timestep=timesteps, 
                             local_cond=local_cond, 

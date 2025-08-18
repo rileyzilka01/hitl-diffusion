@@ -26,7 +26,7 @@ policy:
   use_mid_condition: true
   use_up_condition: true
   
-  diffusion_step_embed_dim: 128
+  diffusion_step_embed_dim: 2304
   down_dims:
   - 512
   - 1024
@@ -80,15 +80,15 @@ ema:
   max_value: 0.9999
 
 dataloader:
-  batch_size: 128
-  num_workers: 8
+  batch_size: 64
+  num_workers: 4
   shuffle: True
   pin_memory: True
   persistent_workers: False
 
 val_dataloader:
-  batch_size: 128
-  num_workers: 8
+  batch_size: 64
+  num_workers: 4
   shuffle: False
   pin_memory: True
   persistent_workers: False

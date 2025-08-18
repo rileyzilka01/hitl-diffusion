@@ -6,9 +6,13 @@ from torchvision.models import resnet34, resnet18
 import torchvision
 import copy
 from PIL import Image
+import matplotlib.pyplot as plt
 
 from typing import Optional, Dict, Tuple, Union, List, Type
 from termcolor import cprint
+from sklearn.decomposition import PCA 
+import numpy as np
+from sklearn.manifold import TSNE
 
 
 def create_mlp(
@@ -190,6 +194,58 @@ class ImgEncoder(nn.Module):
     def get_features(self, x):
         with torch.no_grad():
             z = self.model(x)
+            # visualize the model features
+            model_weights =[]
+#we will save the 49 conv layers in this list
+            conv_layers = []# get all the model children as list
+            model_children = list(self.model.children())#counter to keep count of the conv layers
+            counter = 0#append all the conv layers and their respective wights to the list
+            for i in range(len(model_children)):
+                if type(model_children[i]) == nn.Conv2d:
+                    counter+=1
+                    model_weights.append(model_children[i].weight)
+                    conv_layers.append(model_children[i])
+                elif type(model_children[i]) == nn.Sequential:
+                    for j in range(len(model_children[i])):
+                        for child in model_children[i][j].children():
+                            if type(child) == nn.Conv2d:
+                                counter+=1
+                                model_weights.append(child.weight)
+                                conv_layers.append(child)
+            outputs = []
+            names = []
+            current_input = x
+            for layer in conv_layers:
+                current_input = layer(current_input)
+                outputs.append(current_input)
+                names.append(str(layer))
+
+            processed = []
+            for feature_map in outputs:
+                feature_map = feature_map.squeeze(0)
+                gray_scale = torch.sum(feature_map,0)
+                gray_scale = gray_scale / feature_map.shape[0]
+                processed.append(gray_scale.data.cpu().numpy())
+
+            mean = np.array([0.485, 0.456, 0.406])
+            std = np.array([0.229, 0.224, 0.225])
+
+# Unnormalize and prepare the original image
+            original_img = x.squeeze(0).permute(1, 2, 0).cpu().numpy()
+            original_img = (original_img * std + mean)
+            original_img = np.clip(original_img, 0, 1)
+            fig = plt.figure(figsize=(30, 50))
+            for i in range(len(processed)):
+                a = fig.add_subplot(5, 4, i+1)
+                imgplot = plt.imshow(processed[i])
+                a.axis("off")
+                a.set_title(names[i].split('(')[0], fontsize=30)
+            # plt.savefig(str('feature_maps.jpg'), bbox_inches='tight')
+            a = fig.add_subplot(5, 4, 20)
+            a.imshow(original_img)
+            a.axis("off")
+            a.set_title("Original Image", fontsize=14)
+            plt.show()
         return z.cpu().data.numpy() ### Can't store everything in GPU :/
 
 class Identity(nn.Module):
@@ -283,9 +339,13 @@ class DP3Encoder(nn.Module):
         # wrist_pn_feat = self.wrist_p_extractor(wrist_points)    # B * out_channel
         back_in_feat = self.back_i_extractor(back_rgb)    # B * out_channel
         wrist_in_feat = self.wrist_i_extractor(wrist_rgb)    # B * out_channel
-            
+
+        # self.back_i_extractor.get_features(wrist_rgb[0].unsqueeze(0)) # UNCOMMENT this to see what the img encoder is doing
+
         state = observations[self.state_key]
         state_feat = self.state_mlp(state)  # B * 64
+        # print('obs shape')
+        # print(back_in_feat.shape, wrist_in_feat.shape, state_feat.shape)
         final_feat = torch.cat([back_in_feat, wrist_in_feat, state_feat], dim=-1)
         return final_feat
 
