@@ -18,6 +18,8 @@ from train import TrainHITLWorkspace
 import zmq
 import json
 import numpy as np
+import time
+import pickle
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
     
@@ -34,27 +36,37 @@ def main(cfg):
     if cfg.server:
         context = zmq.Context()
         socket = context.socket(zmq.REP)
-        socket.bind("tcp://192.168.1.214:5555")  # Listen on all interfaces
+        socket.bind("tcp://0.0.0.0:5555")  # Listen on all interfaces
 
         print("Server up!")
 
         while True:
-            message = socket.recv()
-            data = json.loads(message.decode('utf-8'))
+            parts = socket.recv_multipart()
+            meta = pickle.loads(parts[0])
             
-            if data.get("ping", False):
-                socket.send_string(json.dumps({"pong": True}))
+            if meta.get("ping", False):
+                reply_meta = pickle.dumps({"pong": True})
+                socket.send_multipart([reply_meta])
                 continue
 
-            obs_dict = {
-                "point_cloud": torch.tensor(np.expand_dims(data['point_cloud'], axis=0)).cuda(),
-                "agent_pos": torch.tensor(np.expand_dims(data['agent_pos'], axis=0)).cuda()
-            }
+            obs_dict = {}
+            for (key, md), buf in zip(meta.items(), parts[1:]):
+                arr = np.frombuffer(buf, dtype=md["dtype"]).reshape(md["shape"])
+                obs_dict[key] = torch.tensor(np.expand_dims(arr, axis=0)).cuda()
+                print(key, obs_dict[key].shape)
+
+
+            # obs_dict = {
+            #     # "point_cloud": torch.tensor(np.expand_dims(data['back_point_cloud'], axis=0)).cuda(),
+            #     "wrist_rgb": torch.tensor(np.expand_dims(data['wrist_rgb'], axis=0)).cuda(),
+            #     "back_rgb": torch.tensor(np.expand_dims(data['back_rgb'], axis=0)).cuda(),
+            #     "agent_pos": torch.tensor(np.expand_dims(data['agent_pos'], axis=0)).cuda()
+            # }
 
             with torch.no_grad():
                 result = workspace.model_inference(server_call=True, data=obs_dict)
 
-            action = result['action_pred'].cpu().numpy().tolist()
+            action = result['action_pred'].cpu().numpy().tolist()[0]
             response = json.dumps({"action": action})
             socket.send_string(response)
 

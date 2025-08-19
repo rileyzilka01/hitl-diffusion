@@ -22,7 +22,7 @@ from scipy.spatial.transform import Rotation as R
 import cv2
 import torchvision.transforms.functional as F
 
-def preproces_image(image):
+def preprocess_image(image):
     if image.dtype != np.float32:
         image = image.astype(np.float32)
     if image.max() > 1.0:
