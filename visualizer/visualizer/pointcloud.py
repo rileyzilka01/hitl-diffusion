@@ -250,7 +250,8 @@ def plot_sequence():
     vis.visualize_pointclouds(pcs, color=color)
 
 def plot_one():
-    pc_path = '/home/rzilka/hitl-diffusion/data/bowl/0/10/back_depth.npy'
+    # pc_path = '/home/serg/projects/hitl-diffusion/data/bowl/0/10/back_depth.npy'
+    pc_path = '/home/serg/projects/png_vision/data/test/2/0/back_depth.npy'
         
     vis = Visualizer()
 
@@ -259,9 +260,9 @@ def plot_one():
 
     # Crop
     WORK_SPACE = [
-        [-0.4, 0.4],
-        [-0.4, 0.4],
-        [0, 1]
+        [-0.4, 0.7],
+        [-0.5, 0.2],
+        [0, 0.9]
     ]
 
     pc = pc[np.where(
@@ -270,6 +271,9 @@ def plot_one():
         (pc[..., 2] > WORK_SPACE[2][0]) & (pc[..., 2] < WORK_SPACE[2][1])
     )]
 
+    centroid = np.mean(pc[..., :3], axis=0)
+    print(centroid)
+
     pc, sample_indices = vis.farthest_point_sampling(pc, use_cuda=True)
 
     color:tuple=None
@@ -277,5 +281,5 @@ def plot_one():
 
 
 if __name__ == "__main__":
-    plot_sequence()
-    # plot_one()
+    # plot_sequence()
+    plot_one()
