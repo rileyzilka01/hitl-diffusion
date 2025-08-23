@@ -23,7 +23,7 @@ class HitlDataset(BaseDataset):
         super().__init__()
         self.task_name = task_name
         self.replay_buffer = ReplayBuffer.copy_from_path(
-            zarr_path, keys=['state', 'action', 'back_rgb', 'wrist_rgb', 'back_point_cloud'])
+            zarr_path, keys=['state', 'action', 'back_point_cloud'])
         val_mask = get_val_mask(
             n_episodes=self.replay_buffer.n_episodes, 
             val_ratio=val_ratio,
@@ -71,8 +71,8 @@ class HitlDataset(BaseDataset):
         normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
         # normalizer['back_point_cloud'] = SingleFieldLinearNormalizer.create_identity()
         # normalizer['wrist_point_cloud'] = SingleFieldLinearNormalizer.create_identity()
-        normalizer['back_rgb'] = SingleFieldLinearNormalizer.create_identity()
-        normalizer['wrist_rgb'] = SingleFieldLinearNormalizer.create_identity()
+        # normalizer['back_rgb'] = SingleFieldLinearNormalizer.create_identity()
+        # normalizer['wrist_rgb'] = SingleFieldLinearNormalizer.create_identity()
         return normalizer
 
     def __len__(self) -> int:
@@ -82,15 +82,15 @@ class HitlDataset(BaseDataset):
         agent_pos = sample['state'][:,].astype(np.float32) # (agent_posx2, block_posex3)
         # wrist_point_cloud = sample['wrist_point_cloud'][:,].astype(np.float32) # (T, 512, 3)
         back_point_cloud = sample['back_point_cloud'][:,].astype(np.float32) # (T, 512, 3)
-        wrist_rgb = sample['wrist_rgb'][:,].astype(np.float32) # (T, 640, 480)
-        back_rgb = sample['back_rgb'][:,].astype(np.float32) # (T, 640, 480)
+        # wrist_rgb = sample['wrist_rgb'][:,].astype(np.float32) # (T, 640, 480)
+        # back_rgb = sample['back_rgb'][:,].astype(np.float32) # (T, 640, 480)
 
         data = {
             'obs': {
                 'back_point_cloud': back_point_cloud, # T, 1024, 6
                 # 'wrist_point_cloud': wrist_point_cloud, # T, 1024, 6
-                'back_rgb': back_rgb, # T, 640, 480
-                'wrist_rgb': wrist_rgb, # T, 640, 480
+                # 'back_rgb': back_rgb, # T, 640, 480
+                # 'wrist_rgb': wrist_rgb, # T, 640, 480
                 'agent_pos': agent_pos, # T, D_pos
             },
             'action': sample['action'].astype(np.float32) # T, D_action
