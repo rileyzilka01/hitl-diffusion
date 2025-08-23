@@ -23,7 +23,7 @@ class HitlDataset(BaseDataset):
         super().__init__()
         self.task_name = task_name
         self.replay_buffer = ReplayBuffer.copy_from_path(
-            zarr_path, keys=['state', 'action', 'back_rgb', 'wrist_rgb'])
+            zarr_path, keys=['state', 'action', 'back_rgb', 'wrist_rgb', 'back_point_cloud'])
         val_mask = get_val_mask(
             n_episodes=self.replay_buffer.n_episodes, 
             val_ratio=val_ratio,
@@ -62,7 +62,7 @@ class HitlDataset(BaseDataset):
             'action': self.replay_buffer['action'], # EE orientation
             # 'agent_pos': self.replay_buffer['state'][...,:], # Joint position and EE position, '...,:' selects all dimensions of array for variable size array (different tasks have different state dimensions)
             'agent_pos': self.replay_buffer['state'][...,:], # ee pose
-            # 'back_point_cloud': self.replay_buffer['back_point_cloud'], # Colorless point cloud
+            'back_point_cloud': self.replay_buffer['back_point_cloud'], # Colorless point cloud
             # 'wrist_point_cloud': self.replay_buffer['wrist_point_cloud'], # Colorless point cloud
             # 'back_rgb': self.replay_buffer['back_rgb'], # Colorless point cloud
             # 'wrist_rgb': self.replay_buffer['wrist_rgb'], # Colorless point cloud
@@ -81,13 +81,13 @@ class HitlDataset(BaseDataset):
     def _sample_to_data(self, sample):
         agent_pos = sample['state'][:,].astype(np.float32) # (agent_posx2, block_posex3)
         # wrist_point_cloud = sample['wrist_point_cloud'][:,].astype(np.float32) # (T, 512, 3)
-        # back_point_cloud = sample['back_point_cloud'][:,].astype(np.float32) # (T, 512, 3)
+        back_point_cloud = sample['back_point_cloud'][:,].astype(np.float32) # (T, 512, 3)
         wrist_rgb = sample['wrist_rgb'][:,].astype(np.float32) # (T, 640, 480)
         back_rgb = sample['back_rgb'][:,].astype(np.float32) # (T, 640, 480)
 
         data = {
             'obs': {
-                # 'back_point_cloud': back_point_cloud, # T, 1024, 6
+                'back_point_cloud': back_point_cloud, # T, 1024, 6
                 # 'wrist_point_cloud': wrist_point_cloud, # T, 1024, 6
                 'back_rgb': back_rgb, # T, 640, 480
                 'wrist_rgb': wrist_rgb, # T, 640, 480

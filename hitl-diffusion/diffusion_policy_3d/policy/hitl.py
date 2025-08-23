@@ -80,7 +80,7 @@ class HITL(BasePolicy):
             else:
                 global_cond_dim = obs_feature_dim * n_obs_steps
 
-        global_cond_dim = 2176
+        global_cond_dim = 2304
         
 
         self.use_pc_color = use_pc_color
