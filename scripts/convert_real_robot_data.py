@@ -194,6 +194,9 @@ action_arrays = []
 episode_ends_arrays = []
 
 use_gripper = False
+ee_centroid = False
+joint_pos = False
+stage = True
 
 if os.path.exists(save_data_path):
     cprint('Data already exists at {}'.format(save_data_path), 'red')
@@ -227,29 +230,40 @@ for demo_dir in demo_dirs:
         
         state_info = np.load(os.path.join(timestep_dir, 'low_dim.npy'), allow_pickle=True).item()
         if use_gripper:
-            robot_state = list(state_info['joints']['position'])[:8] + state_info['ee_position']
+            robot_state = list(state_info['joints']['position'])[:8] + state_info['ee_position'] + ([state_info['stage']] if stage else [])
         else:
-            robot_state = list(state_info['joints']['position'])[:7] + state_info['ee_position']
+            robot_state = list(state_info['joints']['position'])[:7] + state_info['ee_position'] + ([state_info['stage']] if stage else [])
 
-        # Comment this line to get difference instead of absolute orientation
-        # action = state_info['ee_orientation']
-
-        # Getting the difference instead of absolute orientation
-        # Comment out the next 5 lines to go back to position
-        ee_orientation = state_info['ee_orientation']
-        if prev_ee_orientation == None:
-            action = [0, 0, 0]
-        else:
-            # Consider angle wrapping
-            action = [(ee_orientation[i] - prev_ee_orientation[i] + 180) % 360 - 180 for i in range(len(ee_orientation))]
-        prev_ee_orientation = ee_orientation
-
-        # Convert to quaternion (x, y, z, w)
-        euler = action
-        r = R.from_euler('xyz', euler, degrees=True)
-        action = r.as_quat()
+        if not joint_pos:
+            robot_state = robot_state[7:]
 
         obs_pointcloud = np.load(os.path.join(timestep_dir, 'depth.npy'), allow_pickle=True)
+        if ee_centroid:
+            a = state_info['ee_position']
+            b = np.mean(obs_pointcloud[..., :3], axis=0)
+            robot_state += [a[i] - b[i] for i in range(3)]
+
+        ee_orientation = state_info['ee_orientation']
+
+        # ABSOLUTE
+        action = ee_orientation
+        # ABSOLUTE
+
+        # DIFF
+        # if prev_ee_orientation == None:
+        #     action = [0, 0, 0]
+        # else:
+        #     # Consider angle wrapping
+        #     action = [(ee_orientation[i] - prev_ee_orientation[i] + 180) % 360 - 180 for i in range(len(ee_orientation))]
+        # prev_ee_orientation = ee_orientation
+
+        # # Convert to quaternion (x, y, z, w)
+        # euler = action
+        # r = R.from_euler('xyz', euler, degrees=True)
+        # action = r.as_quat()
+        # DIFF
+
+        # Point cloud is processed during recording now
         # obs_pointcloud = preprocess_point_cloud(obs_pointcloud, use_cuda=True)
 
         # img_arrays.append(obs_image)
