@@ -34,8 +34,7 @@ def preprocess_image(image):
     image = image.permute(2, 0, 1)   # -> [C, H, W]
 
     # Resize & crop like torchvision transforms
-    image = F.resize(image, 256)                # shorter side = 256
-    image = F.center_crop(image, (224, 224))    # crop to 224x224
+    image = F.resize(image, [224, 224])                # shorter side = 256
 
     # Normalize for ResNet (ImageNet stats)
     image = F.normalize(
@@ -49,8 +48,8 @@ def preprocess_image(image):
 
 
 
-expert_data_path = '/home/serg/projects/png_vision/data/banana_gen'
-save_data_path = '/home/serg/projects/hitl-diffusion/hitl-diffusion/data/hitl_banana_gen.zarr'
+expert_data_path = '/home/serg/projects/png_vision/data/plate_xbox'
+save_data_path = '/home/serg/projects/hitl-diffusion/hitl-diffusion/data/hitl_plate_xbox.zarr'
 dirs = os.listdir(expert_data_path)
 dirs = sorted([int(d) for d in dirs])
 
@@ -58,8 +57,6 @@ demo_dirs = [os.path.join(expert_data_path, str(d)) for d in dirs if os.path.isd
 
 # storage
 total_count = 0
-back_rgb_arrays = []
-wrist_rgb_arrays = []
 # img_arrays = []
 back_point_cloud_arrays = []
 wrist_point_cloud_arrays = []
@@ -102,21 +99,15 @@ for demo_dir in demo_dirs:
 
         gripper = 1 if state_info['joints']['position'][7] > 0.3 else 0
 
-        robot_state = np.hstack([gripper, curr_ee_pos])
+        robot_state = np.hstack([curr_ee_pos])
         if prev_ee_pos is None:
-            action = [0, 0, 0] # Only happens for the first timestep
+            # action = [0, 0, 0] # Only happens for the first timestep
             prev_ee_pos = state_info['ee_position']
             prev_ee_ori = state_info['ee_orientation']
 
-            action_arrays.append(action)
+            action_arrays.append(R.from_euler('xyz', curr_ee_ori, degrees=True).as_quat())
             back_point_cloud_arrays.append(back_pointcloud)
-            back_rgb = cv2.imread(os.path.join(timestep_dir, 'back_rgb.png'))  # BGR format
-            back_rgb = cv2.cvtColor(back_rgb, cv2.COLOR_BGR2RGB)
-            wrist_rgb = cv2.imread(os.path.join(timestep_dir, 'wrist_rgb.png'))  # BGR format
-            wrist_rgb = cv2.cvtColor(wrist_rgb, cv2.COLOR_BGR2RGB)
 
-            back_rgb_arrays.append(preprocess_image(back_rgb))
-            wrist_rgb_arrays.append(preprocess_image(wrist_rgb))
             state_arrays.append(robot_state)
             total_count += 1
         else:
@@ -130,19 +121,12 @@ for demo_dir in demo_dirs:
             # if (np.any(np.abs(ori_diff) > [0.015, 0.015, 0.015])):
             if (np.any(np.abs(ori_diff) > [0.85, 0.85, 0.85])):
                 ori_diff = R.from_euler('xyz', ori_diff, degrees=True).as_rotvec()
-                action = np.array(ori_diff)
+                action = np.array(R.from_euler('xyz', curr_ee_ori, degrees=True).as_quat())
                 prev_ee_pos = state_info['ee_position']
                 prev_ee_ori = state_info['ee_orientation']
 
                 action_arrays.append(action)
                 back_point_cloud_arrays.append(back_pointcloud)
-                back_rgb = cv2.imread(os.path.join(timestep_dir, 'back_rgb.png'))  # BGR format
-                back_rgb = cv2.cvtColor(back_rgb, cv2.COLOR_BGR2RGB)
-                wrist_rgb = cv2.imread(os.path.join(timestep_dir, 'wrist_rgb.png'))  # BGR format
-                wrist_rgb = cv2.cvtColor(wrist_rgb, cv2.COLOR_BGR2RGB)
-
-                back_rgb_arrays.append(preprocess_image(back_rgb))
-                wrist_rgb_arrays.append(preprocess_image(wrist_rgb))
                 state_arrays.append(robot_state)
 
                 total_count += 1
@@ -178,8 +162,8 @@ zarr_root = zarr.group(save_data_path)
 zarr_data = zarr_root.create_group('data')
 zarr_meta = zarr_root.create_group('meta')
 
-back_rgb_arrays = np.stack(back_rgb_arrays, axis=0)
-wrist_rgb_arrays = np.stack(wrist_rgb_arrays, axis=0)
+# back_rgb_arrays = np.stack(back_rgb_arrays, axis=0)
+# wrist_rgb_arrays = np.stack(wrist_rgb_arrays, axis=0)
 # if img_arrays.shape[1] == 3: # make channel last
     # img_arrays = np.transpose(img_arrays, (0,2,3,1))
 back_point_cloud_arrays = np.stack(back_point_cloud_arrays, axis=0)
@@ -190,8 +174,8 @@ state_arrays = np.stack(state_arrays, axis=0)
 episode_ends_arrays = np.array(episode_ends_arrays)
 
 compressor = zarr.Blosc(cname='zstd', clevel=3, shuffle=1)
-back_rgb_chunk_size = (100, back_rgb_arrays.shape[1], back_rgb_arrays.shape[2], back_rgb_arrays.shape[3])
-wrist_rgb_chunk_size = (100, wrist_rgb_arrays.shape[1], wrist_rgb_arrays.shape[2], wrist_rgb_arrays.shape[3])
+# back_rgb_chunk_size = (100, back_rgb_arrays.shape[1], back_rgb_arrays.shape[2], back_rgb_arrays.shape[3])
+# wrist_rgb_chunk_size = (100, wrist_rgb_arrays.shape[1], wrist_rgb_arrays.shape[2], wrist_rgb_arrays.shape[3])
 back_point_cloud_chunk_size = (100, back_point_cloud_arrays.shape[1], back_point_cloud_arrays.shape[2])
 # wrist_point_cloud_chunk_size = (100, wrist_point_cloud_arrays.shape[1], wrist_point_cloud_arrays.shape[2])
 # depth_chunk_size = (100, depth_arrays.shape[1], depth_arrays.shape[2])
@@ -201,8 +185,8 @@ elif len(action_arrays.shape) == 3:
     action_chunk_size = (100, action_arrays.shape[1], action_arrays.shape[2])
 else:
     raise NotImplementedError
-zarr_data.create_dataset('back_rgb', data=back_rgb_arrays, chunks=back_rgb_chunk_size, dtype='float64', overwrite=True, compressor=compressor)
-zarr_data.create_dataset('wrist_rgb', data=wrist_rgb_arrays, chunks=wrist_rgb_chunk_size, dtype='float64', overwrite=True, compressor=compressor)
+# zarr_data.create_dataset('back_rgb', data=back_rgb_arrays, chunks=back_rgb_chunk_size, dtype='float64', overwrite=True, compressor=compressor)
+# zarr_data.create_dataset('wrist_rgb', data=wrist_rgb_arrays, chunks=wrist_rgb_chunk_size, dtype='float64', overwrite=True, compressor=compressor)
 zarr_data.create_dataset('back_point_cloud', data=back_point_cloud_arrays, chunks=back_point_cloud_chunk_size, dtype='float64', overwrite=True, compressor=compressor)
 # zarr_data.create_dataset('wrist_point_cloud', data=wrist_point_cloud_arrays, chunks=wrist_point_cloud_chunk_size, dtype='float64', overwrite=True, compressor=compressor)
 # zarr_data.create_dataset('depth', data=depth_arrays, chunks=depth_chunk_size, dtype='float64', overwrite=True, compressor=compressor)
@@ -211,8 +195,8 @@ zarr_data.create_dataset('state', data=state_arrays, chunks=(100, state_arrays.s
 zarr_meta.create_dataset('episode_ends', data=episode_ends_arrays, chunks=(100,), dtype='int64', overwrite=True, compressor=compressor)
 
 # print shape
-cprint(f'back_rgb shape: {back_rgb_arrays.shape}, range: [{np.min(back_rgb_arrays)}, {np.max(back_rgb_arrays)}]', 'green')
-cprint(f'wrist_rgb shape: {wrist_rgb_arrays.shape}, range: [{np.min(wrist_rgb_arrays)}, {np.max(wrist_rgb_arrays)}]', 'green')
+# cprint(f'back_rgb shape: {back_rgb_arrays.shape}, range: [{np.min(back_rgb_arrays)}, {np.max(back_rgb_arrays)}]', 'green')
+# cprint(f'wrist_rgb shape: {wrist_rgb_arrays.shape}, range: [{np.min(wrist_rgb_arrays)}, {np.max(wrist_rgb_arrays)}]', 'green')
 cprint(f'back pc shape: {back_point_cloud_arrays.shape}, range: [{np.min(back_point_cloud_arrays)}, {np.max(back_point_cloud_arrays)}]', 'green')
 # cprint(f'wrist pc shape: {wrist_point_cloud_arrays.shape}, range: [{np.min(wrist_point_cloud_arrays)}, {np.max(wrist_point_cloud_arrays)}]', 'green')
 cprint(f'action shape: {action_arrays.shape}, range: [{np.min(action_arrays)}, {np.max(action_arrays)}]', 'green')
