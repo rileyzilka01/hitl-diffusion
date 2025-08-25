@@ -68,9 +68,15 @@ def main(cfg):
             inference_time = time.time() - start_time
             print(f"Inference took {inference_time:.6f} seconds")
 
-            # Convert quaternions to Euler in one shot (vectorized)
-            action_quats = result['action_pred'].cpu().numpy()  # shape: (1, horizon, 4)
-            euler_deg = R.from_quat(action_quats[0]).as_euler('xyz', degrees=True)  # shape: (horizon, 3)
+            # ABSOLUTE
+            euler_deg = result['action_pred'].cpu().numpy()
+            # ABSOLUTE
+
+            # DIFF
+            # # Convert quaternions to Euler in one shot (vectorized)
+            # action_quats = result['action_pred'].cpu().numpy()  # shape: (1, horizon, 4)
+            # euler_deg = R.from_quat(action_quats[0]).as_euler('xyz', degrees=True)  # shape: (horizon, 3)
+            # DIFF
 
             # Send back
             response = {

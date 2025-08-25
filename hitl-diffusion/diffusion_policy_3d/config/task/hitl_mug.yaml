@@ -1,6 +1,6 @@
-name: hitl_block
+name: hitl_mug
 
-task_name: block
+task_name: mug
 
 shape_meta: &shape_meta
   # acceptable types: rgb, low_dim
@@ -23,7 +23,7 @@ env_runner: null # Null because we dont need any simulation environments since w
 
 dataset:
   _target_: diffusion_policy_3d.dataset.hitl_dataset.HitlDataset
-  zarr_path: data/hitl_block.zarr
+  zarr_path: data/hitl_mug.zarr
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1'}
   pad_after: ${eval:'${n_action_steps}-1'}
