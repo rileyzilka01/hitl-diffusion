@@ -46,8 +46,6 @@ def preprocess_image(image):
 
     return image
 
-
-
 expert_data_path = '/home/serg/projects/png_vision/data/plate_xbox'
 save_data_path = '/home/serg/projects/hitl-diffusion/hitl-diffusion/data/hitl_plate_xbox.zarr'
 dirs = os.listdir(expert_data_path)
@@ -65,6 +63,10 @@ state_arrays = []
 action_arrays = []
 episode_ends_arrays = []
 
+use_gripper = False
+ee_centroid = False
+joint_pos = False
+stage = True
 
 if os.path.exists(save_data_path):
     cprint('Data already exists at {}'.format(save_data_path), 'red')
@@ -86,6 +88,7 @@ for demo_dir in demo_dirs:
     prev_ee_pos = None
     prev_ee_ori = None
     demo_timesteps = sorted([int(d) for d in os.listdir(demo_dir)])
+
     for step_idx in tqdm.tqdm(range(len(demo_timesteps))):
         timestep_dir = os.path.join(demo_dir, str(step_idx))
 
@@ -130,26 +133,6 @@ for demo_dir in demo_dirs:
                 state_arrays.append(robot_state)
 
                 total_count += 1
-        # if prev_ee_pos is None:
-        #     action = [0, 0, 0, 0, 0, 0] # Only happens for the first timestep
-        # else:
-        #     prev_quat = R.from_euler('xyz', prev_ee_ori, degrees=True)
-        #
-        #     ori_diff = np.degrees((curr_quat * prev_quat.inv()).as_rotvec())
-        #
-        #     action = np.hstack([(curr_ee_pos - np.array(prev_ee_pos)), ori_diff]) * 30
-        #
-        # robot_state = np.hstack([curr_ee_pos, curr_quat.as_quat()])
-        #
-        # prev_ee_pos = curr_ee_pos
-        # prev_ee_ori = curr_ee_ori
-        #
-        # back_pointcloud = preprocess_point_cloud(back_pointcloud, use_cuda=True)[...,:3] # only get the xyz
-        # action_arrays.append(action)
-        # back_point_cloud_arrays.append(back_pointcloud)
-        # state_arrays.append(robot_state)
-        #
-        # total_count += 1
 
     prev_ee_ori = None
     prev_ee_pos = None
