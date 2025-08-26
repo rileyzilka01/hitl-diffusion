@@ -107,7 +107,7 @@ optimizer:
 training:
   device: "cuda:0"
   seed: 42
-  debug: True # This will tell the training runner to use small epoch and paramaters for a quick test
+  debug: False # This will tell the training runner to use small epoch and paramaters for a quick test
   resume: True # Use checkpoint or not if it exists
   lr_scheduler: cosine
   lr_warmup_steps: 500
