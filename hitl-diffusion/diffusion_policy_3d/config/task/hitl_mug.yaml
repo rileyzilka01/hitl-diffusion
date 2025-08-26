@@ -6,7 +6,9 @@ shape_meta: &shape_meta
   # acceptable types: rgb, low_dim
   obs:
     point_cloud:
-      shape: [1024, 3]
+      # shape: [1024, 3] # colorless pointcloud
+      # shape: [1024, 4] # colored pointcloud
+      shape: [2048, 6] # double size colored pointcloud
       type: point_cloud
     agent_pos:
       # shape: [12] # size of the robot state array (7 for joint pos and 1 for gripper position and 3 for ee_position and 1 for stage)
