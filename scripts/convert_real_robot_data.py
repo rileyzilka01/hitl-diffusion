@@ -48,8 +48,8 @@ def preprocess_image(image):
 
 
 
-expert_data_path = '/home/serg/projects/png_vision/data/plate_xbox'
-save_data_path = '/home/serg/projects/hitl-diffusion/hitl-diffusion/data/hitl_plate_xbox.zarr'
+expert_data_path = '/home/serg/projects/png_vision/data/spoon_xbox'
+save_data_path = '/home/serg/projects/hitl-diffusion/hitl-diffusion/data/hitl_spoon_xbox.zarr'
 dirs = os.listdir(expert_data_path)
 dirs = sorted([int(d) for d in dirs])
 
@@ -95,6 +95,7 @@ for demo_dir in demo_dirs:
         curr_ee_ori = np.array(state_info['ee_orientation'])
 
         back_pointcloud = np.load(os.path.join(timestep_dir, 'back_depth.npy'))
+        back_pointcloud[..., 3:6]
         # wrist_pointcloud = np.load(os.path.join(timestep_dir, 'wrist_depth.npy'))
 
         gripper = 1 if state_info['joints']['position'][7] > 0.3 else 0
@@ -105,7 +106,7 @@ for demo_dir in demo_dirs:
             prev_ee_pos = state_info['ee_position']
             prev_ee_ori = state_info['ee_orientation']
 
-            action_arrays.append(R.from_euler('xyz', curr_ee_ori, degrees=True).as_quat())
+            action_arrays.append(curr_ee_ori)
             back_point_cloud_arrays.append(back_pointcloud)
 
             state_arrays.append(robot_state)
@@ -121,7 +122,7 @@ for demo_dir in demo_dirs:
             # if (np.any(np.abs(ori_diff) > [0.015, 0.015, 0.015])):
             if (np.any(np.abs(ori_diff) > [0.85, 0.85, 0.85])):
                 ori_diff = R.from_euler('xyz', ori_diff, degrees=True).as_rotvec()
-                action = np.array(R.from_euler('xyz', curr_ee_ori, degrees=True).as_quat())
+                action = np.array(curr_ee_ori)
                 prev_ee_pos = state_info['ee_position']
                 prev_ee_ori = state_info['ee_orientation']
 

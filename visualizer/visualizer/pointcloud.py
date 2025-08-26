@@ -77,6 +77,7 @@ class Visualizer:
             sampled_points, indices = torch3d_ops.sample_farthest_points(points=points.unsqueeze(0), K=K)
             sampled_points = sampled_points.squeeze(0)
             sampled_points = sampled_points.cpu().numpy()
+            indices = indices.cpu().numpy()
         else:
             points = torch.from_numpy(points)
             sampled_points, indices = torch3d_ops.sample_farthest_points(points=points.unsqueeze(0), K=K)
@@ -86,7 +87,7 @@ class Visualizer:
         return sampled_points, indices
     
 
-    def visualize_pointcloud(self, pointcloud, color:tuple=None):
+    def visualize_pointcloud(self, pointcloud, color:list=None):
         trace = self._generate_trace(pointcloud, color=color, size=6, opacity=1.0)
         layout = go.Layout(margin=dict(l=0, r=0, b=0, t=0))
         fig = go.Figure(data=[trace], layout=layout)
@@ -250,31 +251,33 @@ def plot_sequence():
     vis.visualize_pointclouds(pcs, color=color)
 
 def plot_one():
-    # pc_path = '/home/serg/projects/hitl-diffusion/data/bowl/0/10/back_depth.npy'
-    pc_path = '/home/serg/projects/png_vision/data/test/2/0/back_depth.npy'
+    # pc_path = '/home/serg/projects/png_vision/data/plate_xbox/0/0/back_depth.npy'
+    pc_path = '/home/serg/projects/png_vision/test_pc.npy'
         
     vis = Visualizer()
 
     pc = np.load(pc_path)
-    pc = pc[...,:3]
+    pc = pc
 
-    # Crop
-    WORK_SPACE = [
-        [-0.4, 0.7],
-        [-0.5, 0.2],
-        [0, 0.9]
-    ]
+    # # Crop
+    # WORK_SPACE = [
+    #     [-1.5, 1],
+    #     [-0.5, 0.5],
+    #     [0, 0.9]
+    # ]
+    #
+    # pc = pc[np.where(
+    #     (pc[..., 0] > WORK_SPACE[0][0]) & (pc[..., 0] < WORK_SPACE[0][1]) &
+    #     (pc[..., 1] > WORK_SPACE[1][0]) & (pc[..., 1] < WORK_SPACE[1][1]) &
+    #     (pc[..., 2] > WORK_SPACE[2][0]) & (pc[..., 2] < WORK_SPACE[2][1])
+    # )]
+    #
+    # centroid = np.mean(pc[..., :3], axis=0)
+    # print(centroid)
 
-    pc = pc[np.where(
-        (pc[..., 0] > WORK_SPACE[0][0]) & (pc[..., 0] < WORK_SPACE[0][1]) &
-        (pc[..., 1] > WORK_SPACE[1][0]) & (pc[..., 1] < WORK_SPACE[1][1]) &
-        (pc[..., 2] > WORK_SPACE[2][0]) & (pc[..., 2] < WORK_SPACE[2][1])
-    )]
-
-    centroid = np.mean(pc[..., :3], axis=0)
-    print(centroid)
-
-    pc, sample_indices = vis.farthest_point_sampling(pc, use_cuda=True)
+    # Doesent work
+    # _, sample_indices = vis.farthest_point_sampling(pc[..., :3], use_cuda=True)
+    # pc = pc[sample_indices, ...]
 
     color:tuple=None
     vis.visualize_pointcloud(pc, color=color)
