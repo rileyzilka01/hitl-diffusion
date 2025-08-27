@@ -215,7 +215,7 @@ for demo_dir in demo_dirs:
     cprint('Processing {}'.format(demo_dir), 'green')
 
     demo_timesteps = sorted([int(d) for d in os.listdir(demo_dir)])
-    demo_timesteps = select_evenly_spaced(demo_timesteps, max_length=128)
+    demo_timesteps = select_evenly_spaced(demo_timesteps, max_length=512)
 
     # For getting the difference instead of absolute orientation
     prev_ee_orientation = None
