@@ -21,12 +21,6 @@ import numpy as np
 import time
 import pickle
 
-import msgpack
-import msgpack_numpy
-msgpack_numpy.patch()  # adds np.ndarray support
-msgpack_numpy_encode = msgpack_numpy.encode
-msgpack_numpy_decode = msgpack_numpy.decode
-
 OmegaConf.register_new_resolver("eval", eval, replace=True)
     
 
@@ -63,8 +57,9 @@ def main(cfg):
             with torch.no_grad():
                 result = workspace.model_inference(server_call=True, data=obs_dict)
 
-            action = result['action_pred'].cpu().numpy().tolist()[0]
-            socket.send_multipart(pickle.dumps({"action": action}))
+            action = result['action_pred'].cpu().numpy()[0]
+            to_send = pickle.dumps({"action": action})
+            socket.send_multipart([to_send])
 
 if __name__ == "__main__":
     main()

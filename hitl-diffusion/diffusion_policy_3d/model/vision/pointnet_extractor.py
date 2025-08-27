@@ -55,6 +55,63 @@ def create_mlp(
     return modules
 
 
+class PointNetEncoderXYZRGB(nn.Module):
+    """Encoder for Pointcloud
+    """
+
+    def __init__(self,
+                 in_channels: int,
+                 out_channels: int=1024,
+                 use_layernorm: bool=False,
+                 final_norm: str='none',
+                 use_projection: bool=True,
+                 **kwargs
+                 ):
+        """_summary_
+
+        Args:
+            in_channels (int): feature size of input (3 or 6)
+            input_transform (bool, optional): whether to use transformation for coordinates. Defaults to True.
+            feature_transform (bool, optional): whether to use transformation for features. Defaults to True.
+            is_seg (bool, optional): for segmentation or classification. Defaults to False.
+        """
+        super().__init__()
+        block_channel = [64, 128, 256, 512]
+        cprint("pointnet use_layernorm: {}".format(use_layernorm), 'cyan')
+        cprint("pointnet use_final_norm: {}".format(final_norm), 'cyan')
+        
+        self.mlp = nn.Sequential(
+            nn.Linear(in_channels, block_channel[0]),
+            nn.LayerNorm(block_channel[0]) if use_layernorm else nn.Identity(),
+            nn.ReLU(),
+            nn.Linear(block_channel[0], block_channel[1]),
+            nn.LayerNorm(block_channel[1]) if use_layernorm else nn.Identity(),
+            nn.ReLU(),
+            nn.Linear(block_channel[1], block_channel[2]),
+            nn.LayerNorm(block_channel[2]) if use_layernorm else nn.Identity(),
+            nn.ReLU(),
+            nn.Linear(block_channel[2], block_channel[3]),
+        )
+        
+       
+        if final_norm == 'layernorm':
+            self.final_projection = nn.Sequential(
+                nn.Linear(block_channel[-1], out_channels),
+                nn.LayerNorm(out_channels)
+            )
+        elif final_norm == 'none':
+            self.final_projection = nn.Linear(block_channel[-1], out_channels)
+        else:
+            raise NotImplementedError(f"final_norm: {final_norm}")
+         
+    def forward(self, x):
+        x = self.mlp(x)
+        x = torch.max(x, 1)[0]
+        x = self.final_projection(x)
+        return x
+
+
+
 class PointNetEncoderXYZ(nn.Module):
     """Encoder for Pointcloud
     """
@@ -300,11 +357,16 @@ class DP3Encoder(nn.Module):
         self.use_pc_color = use_pc_color
         self.pointnet_type = pointnet_type
         if pointnet_type == "pointnet":
-            pointcloud_encoder_cfg.in_channels = 3
-            self.back_p_extractor = PointNetEncoderXYZ(**pointcloud_encoder_cfg)
-            # self.wrist_p_extractor = PointNetEncoderXYZ(**pointcloud_encoder_cfg)
-            # self.back_i_extractor = ImgEncoder(**rgb_encoder_cfg)
-            # self.wrist_i_extractor = ImgEncoder(**rgb_encoder_cfg)
+            if use_pc_color:
+                print("USING COLOR")
+                pointcloud_encoder_cfg.in_channels = 6
+                self.back_p_extractor = PointNetEncoderXYZRGB(**pointcloud_encoder_cfg)
+            else:
+                pointcloud_encoder_cfg.in_channels = 3
+                self.back_p_extractor = PointNetEncoderXYZ(**pointcloud_encoder_cfg)
+                # self.wrist_p_extractor = PointNetEncoderXYZ(**pointcloud_encoder_cfg)
+                # self.back_i_extractor = ImgEncoder(**rgb_encoder_cfg)
+                # self.wrist_i_extractor = ImgEncoder(**rgb_encoder_cfg)
         else:
             raise NotImplementedError(f"pointnet_type: {pointnet_type}")
 
@@ -328,7 +390,7 @@ class DP3Encoder(nn.Module):
         # back_rgb = observations[self.back_rgb_key]
         # wrist_rgb = observations[self.wrist_rgb_key]
 
-        assert len(back_points.shape) == 3, cprint(f"point cloud shape: {back_points.shape}, length should be 3", "red")
+        # assert len(back_points.shape) == 3, cprint(f"point cloud shape: {back_points.shape}, length should be 3", "red")
         # if self.use_imagined_robot:
         #     img_points = observations[self.imagination_key][..., :points.shape[-1]] # align the last dim
         #     points = torch.concat([points, img_points], dim=1)

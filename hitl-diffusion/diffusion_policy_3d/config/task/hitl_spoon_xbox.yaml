@@ -1,6 +1,6 @@
-name: hitl_plate_xbox
+name: hitl_spoon_xbox
 
-task_name: plate_xbox
+task_name: spoon_xbox
 
 shape_meta: &shape_meta
   # acceptable types: rgb, low_dim
@@ -18,7 +18,7 @@ env_runner: null # Null because we dont need any simulation environments since w
 
 dataset:
   _target_: diffusion_policy_3d.dataset.hitl_dataset.HitlDataset
-  zarr_path: data/hitl_plate_xbox.zarr
+  zarr_path: data/hitl_spoon_xbox.zarr
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1'}
   pad_after: ${eval:'${n_action_steps}-1'}
