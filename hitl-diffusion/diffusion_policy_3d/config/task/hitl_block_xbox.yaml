@@ -1,16 +1,10 @@
-name: hitl_banana_xbox
+name: hitl_block_xbox
 
-task_name: banana_xbox
+task_name: block_xbox
 
 shape_meta: &shape_meta
   # acceptable types: rgb, low_dim
   obs:
-    # wrist_rgb:
-    #   shape: [3, 224, 224]
-    #   type: rgb
-    # back_rgb:
-    #   shape: [3, 224, 224]
-    #   type: rgb
     back_point_cloud:
       shape: [1024, 6]
       type: point_cloud
@@ -24,7 +18,7 @@ env_runner: null # Null because we dont need any simulation environments since w
 
 dataset:
   _target_: diffusion_policy_3d.dataset.hitl_dataset.HitlDataset
-  zarr_path: data/hitl_banana_xbox.zarr
+  zarr_path: data/hitl_block_xbox.zarr
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1'}
   pad_after: ${eval:'${n_action_steps}-1'}

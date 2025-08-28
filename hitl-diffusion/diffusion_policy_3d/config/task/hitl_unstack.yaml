@@ -1,6 +1,6 @@
-name: hitl_banana
+name: hitl_unstack
 
-task_name: banana
+task_name: unstack
 
 shape_meta: &shape_meta
   # acceptable types: rgb, low_dim
@@ -25,7 +25,7 @@ env_runner: null # Null because we dont need any simulation environments since w
 
 dataset:
   _target_: diffusion_policy_3d.dataset.hitl_dataset.HitlDataset
-  zarr_path: data/hitl_banana.zarr
+  zarr_path: data/hitl_unstack.zarr
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1'}
   pad_after: ${eval:'${n_action_steps}-1'}
