@@ -327,17 +327,11 @@ class DP3Encoder(nn.Module):
         super().__init__()
         self.imagination_key = 'imagin_robot'
         self.state_key = 'agent_pos'
-        self.back_point_cloud_key = 'back_point_cloud'
-        # self.wrist_point_cloud_key = 'wrist_point_cloud'
-        # self.back_rgb_key = 'back_rgb'
-        # self.wrist_rgb_key = 'wrist_rgb'
+        self.point_cloud_key = 'point_cloud'
         self.n_output_channels = out_channel
         
         self.use_imagined_robot = self.imagination_key in observation_space.keys()
-        self.back_point_cloud_shape = observation_space[self.back_point_cloud_key]
-        # self.wrist_point_cloud_shape = observation_space[self.wrist_point_cloud_key]
-        # self.back_rgb_shape = observation_space[self.back_rgb_key]
-        # self.wrist_rgb_shape = observation_space[self.wrist_rgb_key]
+        self.point_cloud_shape = observation_space[self.point_cloud_key]
         self.state_shape = observation_space[self.state_key]
         if self.use_imagined_robot:
             self.imagination_shape = observation_space[self.imagination_key]
@@ -346,10 +340,7 @@ class DP3Encoder(nn.Module):
             
         
         
-        cprint(f"[DP3Encoder] back point cloud shape: {self.back_point_cloud_shape}", "yellow")
-        # cprint(f"[DP3Encoder] wrist point cloud shape: {self.wrist_point_cloud_shape}", "yellow")
-        # cprint(f"[DP3Encoder] back rgb shape: {self.back_rgb_shape}", "yellow")
-        # cprint(f"[DP3Encoder] wrist rgb shape: {self.wrist_rgb_shape}", "yellow")
+        cprint(f"[DP3Encoder] point cloud shape: {self.point_cloud_shape}", "yellow")
         cprint(f"[DP3Encoder] state shape: {self.state_shape}", "yellow")
         cprint(f"[DP3Encoder] imagination point shape: {self.imagination_shape}", "yellow")
         
@@ -358,12 +349,11 @@ class DP3Encoder(nn.Module):
         self.pointnet_type = pointnet_type
         if pointnet_type == "pointnet":
             if use_pc_color:
-                print("USING COLOR")
                 pointcloud_encoder_cfg.in_channels = 6
-                self.back_p_extractor = PointNetEncoderXYZRGB(**pointcloud_encoder_cfg)
+                self.p_extractor = PointNetEncoderXYZRGB(**pointcloud_encoder_cfg)
             else:
                 pointcloud_encoder_cfg.in_channels = 3
-                self.back_p_extractor = PointNetEncoderXYZ(**pointcloud_encoder_cfg)
+                self.p_extractor = PointNetEncoderXYZ(**pointcloud_encoder_cfg)
                 # self.wrist_p_extractor = PointNetEncoderXYZ(**pointcloud_encoder_cfg)
                 # self.back_i_extractor = ImgEncoder(**rgb_encoder_cfg)
                 # self.wrist_i_extractor = ImgEncoder(**rgb_encoder_cfg)
@@ -385,30 +375,14 @@ class DP3Encoder(nn.Module):
         cprint(f"[DP3Encoder] output dim: {self.n_output_channels}", "red")
     
     def forward(self, observations: Dict) -> torch.Tensor:
-        back_points = observations[self.back_point_cloud_key]
-        # wrist_points = observations[self.wrist_point_cloud_key]
-        # back_rgb = observations[self.back_rgb_key]
-        # wrist_rgb = observations[self.wrist_rgb_key]
+        points = observations[self.point_cloud_key]
 
-        # assert len(back_points.shape) == 3, cprint(f"point cloud shape: {back_points.shape}, length should be 3", "red")
-        # if self.use_imagined_robot:
-        #     img_points = observations[self.imagination_key][..., :points.shape[-1]] # align the last dim
-        #     points = torch.concat([points, img_points], dim=1)
-        
-        # points = torch.transpose(points, 1, 2)   # B * 3 * N
-        # points: B * 3 * (N + sum(Ni))
-        back_pn_feat = self.back_p_extractor(back_points)    # B * out_channel
-        # wrist_pn_feat = self.wrist_p_extractor(wrist_points)    # B * out_channel
-        # back_in_feat = self.back_i_extractor(back_rgb)    # B * out_channel
-        # wrist_in_feat = self.wrist_i_extractor(wrist_rgb)    # B * out_channel
-
-        # self.back_i_extractor.get_features(wrist_rgb[0].unsqueeze(0)) # UNCOMMENT this to see what the img encoder is doing
+        pn_feat = self.p_extractor(points)    # B * out_channel
 
         state = observations[self.state_key]
         state_feat = self.state_mlp(state)  # B * 64
         # print('obs shape')
-        # print(back_in_feat.shape, wrist_in_feat.shape, state_feat.shape)
-        final_feat = torch.cat([back_pn_feat, state_feat], dim=-1)
+        final_feat = torch.cat([pn_feat, state_feat], dim=-1)
         return final_feat
 
 

@@ -368,10 +368,7 @@ class TrainHITLWorkspace:
 
         else:
             obs_dict = {
-                "wrist_point_cloud": torch.randn(1, self.policy.n_obs_steps, 1024, 3).cuda(),  # dummy point cloud
-                "back_point_cloud": torch.randn(1, self.policy.n_obs_steps, 1024, 3).cuda(),  # dummy point cloud
-                "back_rgb": torch.randn(1, self.policy.n_obs_steps, 3, 640, 480).cuda(),  # dummy rgb
-                "back_rgb": torch.randn(1, self.policy.n_obs_steps, 3, 640, 480).cuda(),  # dummy rgb
+                "point_cloud": torch.randn(1, self.policy.n_obs_steps, 1024, 3).cuda(),  # dummy point cloud
                 "agent_pos": torch.randn(1, self.policy.n_obs_steps, 10).cuda() # Dummy robot pos
             }
 

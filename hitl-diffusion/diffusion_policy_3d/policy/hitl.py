@@ -59,6 +59,7 @@ class HITL(BasePolicy):
             
         obs_shape_meta = shape_meta['obs']
         obs_dict = dict_apply(obs_shape_meta, lambda x: x['shape'])
+        print(obs_dict)
 
         obs_encoder = DP3Encoder(observation_space=obs_dict,
             img_crop_shape=crop_shape,
