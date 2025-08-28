@@ -79,9 +79,10 @@ for demo_dir in demo_dirs:
         gripper = 1 if state_info['joints']['position'][7] > 0.3 else 0
 
         if use_gripper:
-            robot_state = list(state_info['joints']['position'])[:7] + ([gripper]) + state_info['ee_position'] + ([state_info['stage']] if stage else [])
+            robot_state = np.hstack([state_info['joints']['position'][:7], [gripper], state_info['ee_position'], ([state_info['stage']] if stage else [])])
         else:
-            robot_state = list(state_info['joints']['position'])[:7] + state_info['ee_position'] + ([state_info['stage']] if stage else [])
+            robot_state = np.hstack([state_info['joints']['position'][:7], state_info['ee_position'], ([state_info['stage']] if stage else [])])
+
 
         if not joint_pos:
             robot_state = robot_state[7:]
@@ -106,10 +107,12 @@ for demo_dir in demo_dirs:
 
             # ori_diff = [(curr_ee_ori[i] - prev_ee_ori[i] + 180) % 360 - 180 for i in range(len(curr_ee_ori))]
             ori_diff = [(curr_ee_ori[i] - prev_ee_ori[i] + np.pi/2) % np.pi - np.pi/2 for i in range(len(curr_ee_ori))]
+            pos_diff = curr_ee_pos - prev_ee_pos
             # ori_diff = (prev_quat * curr_quat.inv()).as_rotvec()
 
             # take a timstep only if the orientation is different enough from a previous step
-            if (np.any(np.abs(ori_diff) > [0.015, 0.015, 0.015])):
+            print(pos_diff)
+            if (np.any(np.abs(ori_diff) > [0.015, 0.015, 0.015]) or np.any(np.abs(pos_diff) > [0.005, 0.005, 0.005])):
             # if (np.any(np.abs(ori_diff) > [0.85, 0.85, 0.85])):
 
                 record_frame = True
@@ -153,7 +156,7 @@ zarr_data.create_dataset('state', data=state_arrays, chunks=(100, state_arrays.s
 zarr_meta.create_dataset('episode_ends', data=episode_ends_arrays, chunks=(100,), dtype='int64', overwrite=True, compressor=compressor)
 
 # print shape
-cprint(f'back pc shape: {point_cloud_arrays.shape}, range: [{np.min(point_cloud_arrays)}, {np.max(point_cloud_arrays)}]', 'green')
+cprint(f'pc shape: {point_cloud_arrays.shape}, range: [{np.min(point_cloud_arrays)}, {np.max(point_cloud_arrays)}]', 'green')
 cprint(f'action shape: {action_arrays.shape}, range: [{np.min(action_arrays)}, {np.max(action_arrays)}]', 'green')
 cprint(f'state shape: {state_arrays.shape}, range: [{np.min(state_arrays)}, {np.max(state_arrays)}]', 'green')
 cprint(f'episode_ends shape: {episode_ends_arrays.shape}, range: [{np.min(episode_ends_arrays)}, {np.max(episode_ends_arrays)}]', 'green')
