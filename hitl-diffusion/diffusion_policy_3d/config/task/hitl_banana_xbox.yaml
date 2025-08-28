@@ -5,13 +5,7 @@ task_name: banana_xbox
 shape_meta: &shape_meta
   # acceptable types: rgb, low_dim
   obs:
-    # wrist_rgb:
-    #   shape: [3, 224, 224]
-    #   type: rgb
-    # back_rgb:
-    #   shape: [3, 224, 224]
-    #   type: rgb
-    back_point_cloud:
+    point_cloud:
       shape: [1024, 6]
       type: point_cloud
     agent_pos:
