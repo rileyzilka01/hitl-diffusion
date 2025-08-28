@@ -22,30 +22,6 @@ from scipy.spatial.transform import Rotation as R
 import cv2
 import torchvision.transforms.functional as F
 
-def preprocess_image(image):
-    if image.dtype != np.float32:
-        image = image.astype(np.float32)
-    if image.max() > 1.0:
-        image /= 255.0
-
-
-    # Convert to torch tensor and channel-first
-    image = torch.from_numpy(image).cuda()  # [H, W, C]
-    image = image.permute(2, 0, 1)   # -> [C, H, W]
-
-    # Resize & crop like torchvision transforms
-    image = F.resize(image, [224, 224])                # shorter side = 256
-
-    # Normalize for ResNet (ImageNet stats)
-    image = F.normalize(
-        image,
-        mean=[0.485, 0.456, 0.406],
-        std=[0.229, 0.224, 0.225]
-    )
-    image = image.cpu().numpy()
-
-    return image
-
 expert_data_path = '/home/serg/projects/png_vision/data/block'
 save_data_path = '/home/serg/projects/hitl-diffusion/hitl-diffusion/data/hitl_block.zarr'
 dirs = os.listdir(expert_data_path)
