@@ -111,7 +111,6 @@ for demo_dir in demo_dirs:
             # ori_diff = (prev_quat * curr_quat.inv()).as_rotvec()
 
             # take a timstep only if the orientation is different enough from a previous step
-            print(pos_diff)
             if (np.any(np.abs(ori_diff) > [0.015, 0.015, 0.015]) or np.any(np.abs(pos_diff) > [0.005, 0.005, 0.005])):
             # if (np.any(np.abs(ori_diff) > [0.85, 0.85, 0.85])):
 
