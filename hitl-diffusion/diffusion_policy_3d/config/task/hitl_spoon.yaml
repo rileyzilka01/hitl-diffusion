@@ -1,6 +1,6 @@
-name: hitl_spoon_xbox
+name: hitl_spoon
 
-task_name: spoon_xbox
+task_name: spoon
 
 shape_meta: &shape_meta
   # acceptable types: rgb, low_dim
@@ -9,7 +9,7 @@ shape_meta: &shape_meta
       shape: [1024, 6]
       type: point_cloud
     agent_pos:
-      shape: [3] # size of the robot state array (1 for gripper position and 3 for ee_position)
+      shape: [4] # size of the robot state array (1 for gripper position and 3 for ee_position)
       type: low_dimx
   action:
     shape: [3] # size of the action array (3 for ee_orientation in rotvec)
@@ -18,7 +18,7 @@ env_runner: null # Null because we dont need any simulation environments since w
 
 dataset:
   _target_: diffusion_policy_3d.dataset.hitl_dataset.HitlDataset
-  zarr_path: data/hitl_spoon_xbox.zarr
+  zarr_path: data/hitl_spoon.zarr
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1'}
   pad_after: ${eval:'${n_action_steps}-1'}
