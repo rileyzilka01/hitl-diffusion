@@ -1,0 +1,27 @@
+name: hitl_usb
+
+task_name: usb
+
+shape_meta: &shape_meta
+  # acceptable types: rgb, low_dim
+  obs:
+    point_cloud:
+      shape: [1024, 6]
+      type: point_cloud
+    agent_pos:
+      shape: [4] # size of the robot state array (1 for gripper position and 3 for ee_position)
+      type: low_dimx
+  action:
+    shape: [3] # size of the action array (3 for ee_orientation in rotvec)
+
+env_runner: null # Null because we dont need any simulation environments since were in the real world
+
+dataset:
+  _target_: diffusion_policy_3d.dataset.hitl_dataset.HitlDataset
+  zarr_path: data/hitl_usb.zarr
+  horizon: ${horizon}
+  pad_before: ${eval:'${n_obs_steps}-1'}
+  pad_after: ${eval:'${n_action_steps}-1'}
+  seed: 42
+  val_ratio: 0.02
+  max_train_episodes: 90
