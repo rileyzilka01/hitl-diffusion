@@ -46,8 +46,8 @@ def preprocess_image(image):
 
     return image
 
-expert_data_path = '/home/serg/projects/png_vision/data/spoon_xbox'
-save_data_path = '/home/serg/projects/hitl-diffusion/hitl-diffusion/data/hitl_spoon_xbox.zarr'
+expert_data_path = '/home/serg/projects/png_vision/data/block'
+save_data_path = '/home/serg/projects/hitl-diffusion/hitl-diffusion/data/hitl_block.zarr'
 dirs = os.listdir(expert_data_path)
 dirs = sorted([int(d) for d in dirs])
 
@@ -118,12 +118,13 @@ for demo_dir in demo_dirs:
             # prev_quat = R.from_euler('xyz', prev_ee_ori, degrees=True)
             # curr_quat = R.from_euler('xyz', curr_ee_ori, degrees=True)
 
-            ori_diff = [(curr_ee_ori[i] - prev_ee_ori[i] + 180) % 360 - 180 for i in range(len(curr_ee_ori))]
+            # ori_diff = [(curr_ee_ori[i] - prev_ee_ori[i] + 180) % 360 - 180 for i in range(len(curr_ee_ori))]
+            ori_diff = [(curr_ee_ori[i] - prev_ee_ori[i] + np.pi/2) % np.pi - np.pi/2 for i in range(len(curr_ee_ori))]
             # ori_diff = (prev_quat * curr_quat.inv()).as_rotvec()
 
             # take a timstep only if the orientation is different enough from a previous step
-            # if (np.any(np.abs(ori_diff) > [0.015, 0.015, 0.015])):
-            if (np.any(np.abs(ori_diff) > [0.85, 0.85, 0.85])):
+            if (np.any(np.abs(ori_diff) > [0.015, 0.015, 0.015])):
+            # if (np.any(np.abs(ori_diff) > [0.85, 0.85, 0.85])):
                 ori_diff = R.from_euler('xyz', ori_diff, degrees=True).as_rotvec()
                 action = np.array(curr_ee_ori)
                 prev_ee_pos = state_info['ee_position']
