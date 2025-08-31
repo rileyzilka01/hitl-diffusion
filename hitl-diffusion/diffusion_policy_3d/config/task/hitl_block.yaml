@@ -12,7 +12,7 @@ shape_meta: &shape_meta
       shape: [4] # 6 for ee pos and orientation + 7 for joint positions
       type: low_dimx
   action:
-    shape: [3] # size of the action array (3 for ee_pose)
+    shape: [6] # size of the action array (3 for ee_pose)
 
 env_runner: null # Null because we dont need any simulation environments since were in the real world
 
