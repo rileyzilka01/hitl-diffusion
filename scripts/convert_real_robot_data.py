@@ -197,6 +197,7 @@ use_gripper = False
 ee_centroid = False
 joint_pos = False
 stage = True
+auto = False
 
 if os.path.exists(save_data_path):
     cprint('Data already exists at {}'.format(save_data_path), 'red')
@@ -215,7 +216,7 @@ for demo_dir in demo_dirs:
     cprint('Processing {}'.format(demo_dir), 'green')
 
     demo_timesteps = sorted([int(d) for d in os.listdir(demo_dir)])
-    demo_timesteps = select_evenly_spaced(demo_timesteps, max_length=512)
+    demo_timesteps = select_evenly_spaced(demo_timesteps, max_length=256)
 
     # For getting the difference instead of absolute orientation
     prev_ee_orientation = None
@@ -230,7 +231,10 @@ for demo_dir in demo_dirs:
         
         state_info = np.load(os.path.join(timestep_dir, 'low_dim.npy'), allow_pickle=True).item()
         if use_gripper:
-            robot_state = list(state_info['joints']['position'])[:8] + state_info['ee_position'] + ([state_info['stage']] if stage else [])
+            # robot_state = list(state_info['joints']['position'])[:8] + state_info['ee_position'] + ([state_info['stage']] if stage else []) # shared control
+            robot_state = list(state_info['joints']['position'])[:8] + ([state_info['stage']] if stage else []) # auto
+            if use_gripper:
+                robot_state[7] = 1 if robot_state[7] > 0.3 else -1
         else:
             robot_state = list(state_info['joints']['position'])[:7] + state_info['ee_position'] + ([state_info['stage']] if stage else [])
 
@@ -246,7 +250,10 @@ for demo_dir in demo_dirs:
         ee_orientation = state_info['ee_orientation']
 
         # ABSOLUTE
-        action = ee_orientation
+        if not auto:
+            action = ee_orientation # for shared control
+        elif auto:
+            action = robot_state # for auto
         # ABSOLUTE
 
         # DIFF

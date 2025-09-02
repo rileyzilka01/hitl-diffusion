@@ -21,6 +21,12 @@ def preview_zarr(store_path, show_data=True, max_elements=10):
                 print(f"[Group]  {full_path}/")
                 explore(item, full_path)
             elif isinstance(item, zarr.Array):
+                if full_path == 'data/state':
+                    np.set_printoptions(
+                        threshold=np.inf,     # Don't truncate long arrays
+                        linewidth=200,        # Adjust as per terminal width
+                        edgeitems=max_elements  # Controls how much of the array is shown
+                    )
                 print(f"[Array]  {full_path}")
                 print(f"  shape: {item.shape}")
                 print(f"  dtype: {item.dtype}")
@@ -42,4 +48,4 @@ if __name__ == "__main__":
         sys.exit(1)
     
     path = sys.argv[1]
-    preview_zarr(path, max_elements=30)
+    preview_zarr(path, max_elements=128)
