@@ -1,159 +1,13 @@
 import os
 import zarr
-import pickle
 import tqdm
 import numpy as np
-import torch
-import pytorch3d.ops as torch3d_ops
-import torchvision
 from termcolor import cprint
-import re
-import time
-import sys
 
 
 import numpy as np
-import torch
-import pytorch3d.ops as torch3d_ops
-import torchvision
-import socket
-import pickle
-
+import sys
 from scipy.spatial.transform import Rotation as R
-
-def farthest_point_sampling(points, num_points=1024, use_cuda=True):
-    K = [num_points]
-    if use_cuda:
-        points = torch.from_numpy(points).cuda()
-        sampled_points, indices = torch3d_ops.sample_farthest_points(points=points.unsqueeze(0), K=K)
-        sampled_points = sampled_points.squeeze(0)
-        sampled_points = sampled_points.cpu().numpy()
-    else:
-        points = torch.from_numpy(points)
-        sampled_points, indices = torch3d_ops.sample_farthest_points(points=points.unsqueeze(0), K=K)
-        sampled_points = sampled_points.squeeze(0)
-        sampled_points = sampled_points.numpy()
-
-    return sampled_points, indices
-
-def preprocess_point_cloud(points, use_cuda=True):
-    
-    num_points = 1024
-    orientation = False
-    if orientation:
-        extrinsics_matrix = get_homogenous_matrix()
-
-        point_xyz = points[..., :3]
-        point_homogeneous = np.hstack((point_xyz, np.ones((point_xyz.shape[0], 1))))
-        point_homogeneous = np.dot(point_homogeneous, extrinsics_matrix)
-        points[..., :3] = point_homogeneous[..., :3]
-
-    # Crop
-    if orientation:
-        # Tall Cam
-        # WORK_SPACE = [
-        #     [-0.5, 0.4],
-        #     [-1.4, 0],
-        #     [-1, -0.4]
-        # ]
-
-        # Short Cam
-        WORK_SPACE = [
-            [-0.4, 0.4],
-            [-1.1, 1],
-            [-0.4, 1]
-        ]
-
-    else:
-        # # Tall Unoriented
-        # WORK_SPACE = [
-        #     [-0.4, 0.4],
-        #     [-0.4, 0.4],
-        #     [0.5, 1.5]
-        # ]
-
-        # Medium
-        WORK_SPACE = [
-            [-0.4, 0.4],
-            [-1.1, 1],
-            [-0.4, 1.4]
-        ]
-
-        # Short Unoriented
-        # WORK_SPACE = [
-        #     [-0.4, 0.4],
-        #     [-1.1, 1],
-        #     [-0.4, 1.2]
-        # ]
-
-    points = points[np.where(
-        (points[..., 0] > WORK_SPACE[0][0]) & (points[..., 0] < WORK_SPACE[0][1]) &
-        (points[..., 1] > WORK_SPACE[1][0]) & (points[..., 1] < WORK_SPACE[1][1]) &
-        (points[..., 2] > WORK_SPACE[2][0]) & (points[..., 2] < WORK_SPACE[2][1])
-    )]
-
-    points_xyz = points[..., :3]
-    points_xyz, sample_indices = farthest_point_sampling(points_xyz, num_points, use_cuda)
-    if orientation:
-        # Tall Cam
-        # points_xyz[..., :3] -= [0.03694567, -0.63618947, -0.85372098]
-        # Short Cam
-        points_xyz[..., :3] -= [-0.04489961, -0.6327338, -0.34466678]
-    sample_indices = sample_indices.cpu()
-    points_rgb = points[sample_indices, 3:][0]
-    points = np.hstack((points_xyz, points_rgb))
-    return points
-
-def get_homogenous_matrix():
-    # Tall Cam
-    # rx_deg = 37  # Rotation around X
-    # ry_deg = 180  # Rotation around Y
-    # rz_deg = 0  # Rotation around Z
-
-    # Short Cam
-    rx_deg = 60  # Rotation around X
-    ry_deg = 180  # Rotation around Y
-    rz_deg = 0  # Rotation around Z
-
-    # Convert to radians
-    rx = np.radians(rx_deg)
-    ry = np.radians(ry_deg)
-    rz = np.radians(rz_deg)
-
-    # Rotation matrix around X-axis
-    Rx = np.array([
-        [1, 0,          0,           0],
-        [0, np.cos(rx), -np.sin(rx), 0],
-        [0, np.sin(rx), np.cos(rx),  0],
-        [0, 0,          0,           1]
-    ])
-
-    # Rotation matrix around Y-axis
-    Ry = np.array([
-        [np.cos(ry),  0, np.sin(ry), 0],
-        [0,           1, 0,          0],
-        [-np.sin(ry), 0, np.cos(ry), 0],
-        [0,           0, 0,          1]
-    ])
-
-    # Rotation matrix around Z-axis
-    Rz = np.array([
-        [np.cos(rz), -np.sin(rz), 0, 0],
-        [np.sin(rz),  np.cos(rz), 0, 0],
-        [0,           0,          1, 0],
-        [0,           0,          0, 1]
-    ])
-
-    # Original extrinsics matrix (identity in this case)
-    extrinsics_matrix = np.eye(4)
-
-    # Combine rotations (Z * Y * X) — typical convention (can change based on your coordinate system)
-    rotation_combined = Rz @ Ry @ Rx
-
-    # Apply rotation to extrinsics
-    rotated_extrinsics = rotation_combined @ extrinsics_matrix
-
-    return rotated_extrinsics
 
 def select_evenly_spaced(array, max_length=48):
     n = len(array)
@@ -161,24 +15,20 @@ def select_evenly_spaced(array, max_length=48):
         return array
     indices = np.linspace(0, n - 1, max_length, dtype=int)
     return [array[i] for i in indices]
-   
-def preproces_image(image):
-    img_size = 84
-    
-    image = image.astype(np.float32)
-    image = torch.from_numpy(image).cuda()
-    image = image.permute(2, 0, 1) # HxWx4 -> 4xHxW
-    image = torchvision.transforms.functional.resize(image, (img_size, img_size))
-    image = image.permute(1, 2, 0) # 4xHxW -> HxWx4
-    image = image.cpu().numpy()
-    return image
 
 if len(sys.argv) < 3:
     print("Usage: python scripts/convert_real_robot_data.py <input_dataset_name> <output_dataset_name>")
     sys.exit(1)
 
-expert_data_path = f'/home/rzilka/png_vision/data/{sys.argv[1]}'
-save_data_path = f'/home/rzilka/hitl-diffusion/hitl-diffusion/data/{sys.argv[2]}.zarr'
+if os.getenv("USER") == "serg":
+    expert_data_path = f'/home/serg/projects/png_vision/data/{sys.argv[1]}'
+    save_data_path = f'/home/serg/projects/hitl-diffusion/hitl-diffusion/data/{sys.argv[2]}.zarr'
+elif os.getenv("USER") == "rzilka":
+    expert_data_path = f'/home/rzilka/png_vision/data/{sys.argv[1]}'
+    save_data_path = f'/home/rzilka/hitl-diffusion/hitl-diffusion/data/{sys.argv[2]}.zarr'
+else:
+    raise NotImplementedError("who dis")
+
 dirs = os.listdir(expert_data_path)
 dirs = sorted([int(d) for d in dirs])
 
@@ -186,17 +36,17 @@ demo_dirs = [os.path.join(expert_data_path, str(d)) for d in dirs if os.path.isd
 
 # storage
 total_count = 0
-# img_arrays = []
 point_cloud_arrays = []
-# depth_arrays = []
 state_arrays = []
 action_arrays = []
 episode_ends_arrays = []
+record_frame = False
 
 use_gripper = False
 ee_centroid = False
 joint_pos = False
 stage = True
+evenly_spaced = False
 
 if os.path.exists(save_data_path):
     cprint('Data already exists at {}'.format(save_data_path), 'red')
@@ -211,69 +61,73 @@ if os.path.exists(save_data_path):
         exit()
 os.makedirs(save_data_path, exist_ok=True)
 
+
 for demo_dir in demo_dirs:
     cprint('Processing {}'.format(demo_dir), 'green')
 
-    demo_timesteps = sorted([int(d) for d in os.listdir(demo_dir)])
-    demo_timesteps = select_evenly_spaced(demo_timesteps, max_length=512)
+    prev_ee_pos = None
+    prev_ee_ori = None
 
-    # For getting the difference instead of absolute orientation
-    prev_ee_orientation = None
+    demo_timesteps = sorted([int(d) for d in os.listdir(demo_dir)])
+    if evenly_spaced:
+        demo_timesteps = select_evenly_spaced(demo_timesteps, max_length=512)
 
     for step_idx in tqdm.tqdm(range(len(demo_timesteps))):
-        timestep_dir = os.path.join(demo_dir, str(demo_timesteps[step_idx]))
+        timestep_dir = os.path.join(demo_dir, str(step_idx))
 
-        # obs_image = demo['image'][step_idx]
-        # obs_depth = demo['depth'][step_idx]
-        # obs_image = preproces_image(obs_image)
-        # obs_depth = preproces_image(np.expand_dims(obs_depth, axis=-1)).squeeze(-1)
-        
         state_info = np.load(os.path.join(timestep_dir, 'low_dim.npy'), allow_pickle=True).item()
+        gripper = 1 if state_info['joints']['position'][7] > 0.3 else 0
+
         if use_gripper:
-            robot_state = list(state_info['joints']['position'])[:8] + state_info['ee_position'] + ([state_info['stage']] if stage else [])
+            robot_state = np.hstack([state_info['joints']['position'][:7], [gripper], state_info['ee_position'], ([state_info['stage']] if stage else [])])
         else:
-            robot_state = list(state_info['joints']['position'])[:7] + state_info['ee_position'] + ([state_info['stage']] if stage else [])
+            robot_state = np.hstack([state_info['joints']['position'][:7], state_info['ee_position'], ([state_info['stage']] if stage else [])])
+
 
         if not joint_pos:
             robot_state = robot_state[7:]
 
-        obs_pointcloud = np.load(os.path.join(timestep_dir, 'depth.npy'), allow_pickle=True)
+
+        curr_ee_pos = np.array(state_info['ee_position'])
+        curr_ee_ori = np.array(state_info['ee_orientation'])
+
+        obs_pointcloud = np.load(os.path.join(timestep_dir, 'depth.npy'))
+
         if ee_centroid:
             a = state_info['ee_position']
             b = np.mean(obs_pointcloud[..., :3], axis=0)
             robot_state += [a[i] - b[i] for i in range(3)]
 
-        ee_orientation = state_info['ee_orientation']
 
-        # ABSOLUTE
-        action = ee_orientation
-        # ABSOLUTE
+        if evenly_spaced or prev_ee_pos is None:
+            record_frame = True
+        else:
+            # prev_quat = R.from_euler('xyz', prev_ee_ori, degrees=True)
+            # curr_quat = R.from_euler('xyz', curr_ee_ori, degrees=True)
 
-        # DIFF
-        # if prev_ee_orientation == None:
-        #     action = [0, 0, 0]
-        # else:
-        #     # Consider angle wrapping
-        #     action = [(ee_orientation[i] - prev_ee_orientation[i] + 180) % 360 - 180 for i in range(len(ee_orientation))]
-        # prev_ee_orientation = ee_orientation
+            # ori_diff = [(curr_ee_ori[i] - prev_ee_ori[i] + 180) % 360 - 180 for i in range(len(curr_ee_ori))]
+            ori_diff = [(curr_ee_ori[i] - prev_ee_ori[i] + np.pi/2) % np.pi - np.pi/2 for i in range(len(curr_ee_ori))]
+            pos_diff = curr_ee_pos - prev_ee_pos
+            # ori_diff = (prev_quat * curr_quat.inv()).as_rotvec()
 
-        # # Convert to quaternion (x, y, z, w)
-        # euler = action
-        # r = R.from_euler('xyz', euler, degrees=True)
-        # action = r.as_quat()
-        # DIFF
+            # take a timstep only if the orientation is different enough from a previous step
+            if (np.any(np.abs(ori_diff) > [0.015, 0.015, 0.015]) or np.any(np.abs(pos_diff) > [0.005, 0.005, 0.005])):
+            # if (np.any(np.abs(ori_diff) > [0.85, 0.85, 0.85])):
 
-        # Point cloud is processed during recording now
-        # obs_pointcloud = preprocess_point_cloud(obs_pointcloud, use_cuda=True)
+                record_frame = True
 
-        # img_arrays.append(obs_image)
-        action_arrays.append(action)
-        point_cloud_arrays.append(obs_pointcloud)
-        # depth_arrays.append(obs_depth)
-        state_arrays.append(robot_state)
+        if record_frame:
+            action = np.array(curr_ee_ori)
+            prev_ee_pos = state_info['ee_position']
+            prev_ee_ori = state_info['ee_orientation']
 
-        total_count += 1
-    
+            action_arrays.append(action)
+            point_cloud_arrays.append(obs_pointcloud)
+            state_arrays.append(robot_state)
+
+            total_count += 1
+            record_frame = False
+
     episode_ends_arrays.append(total_count)
 
 
@@ -282,39 +136,29 @@ zarr_root = zarr.group(save_data_path)
 zarr_data = zarr_root.create_group('data')
 zarr_meta = zarr_root.create_group('meta')
 
-# img_arrays = np.stack(img_arrays, axis=0)
-# if img_arrays.shape[1] == 3: # make channel last
-    # img_arrays = np.transpose(img_arrays, (0,2,3,1))
 point_cloud_arrays = np.stack(point_cloud_arrays, axis=0)
-# depth_arrays = np.stack(depth_arrays, axis=0)
 action_arrays = np.stack(action_arrays, axis=0)
 state_arrays = np.stack(state_arrays, axis=0)
 episode_ends_arrays = np.array(episode_ends_arrays)
 
 compressor = zarr.Blosc(cname='zstd', clevel=3, shuffle=1)
-# img_chunk_size = (100, img_arrays.shape[1], img_arrays.shape[2], img_arrays.shape[3])
 point_cloud_chunk_size = (100, point_cloud_arrays.shape[1], point_cloud_arrays.shape[2])
-# depth_chunk_size = (100, depth_arrays.shape[1], depth_arrays.shape[2])
 if len(action_arrays.shape) == 2:
     action_chunk_size = (100, action_arrays.shape[1])
 elif len(action_arrays.shape) == 3:
     action_chunk_size = (100, action_arrays.shape[1], action_arrays.shape[2])
 else:
     raise NotImplementedError
-# zarr_data.create_dataset('img', data=img_arrays, chunks=img_chunk_size, dtype='uint8', overwrite=True, compressor=compressor)
 zarr_data.create_dataset('point_cloud', data=point_cloud_arrays, chunks=point_cloud_chunk_size, dtype='float64', overwrite=True, compressor=compressor)
-# zarr_data.create_dataset('depth', data=depth_arrays, chunks=depth_chunk_size, dtype='float64', overwrite=True, compressor=compressor)
 zarr_data.create_dataset('action', data=action_arrays, chunks=action_chunk_size, dtype='float32', overwrite=True, compressor=compressor)
 zarr_data.create_dataset('state', data=state_arrays, chunks=(100, state_arrays.shape[1]), dtype='float32', overwrite=True, compressor=compressor)
 zarr_meta.create_dataset('episode_ends', data=episode_ends_arrays, chunks=(100,), dtype='int64', overwrite=True, compressor=compressor)
 
 # print shape
-# cprint(f'img shape: {img_arrays.shape}, range: [{np.min(img_arrays)}, {np.max(img_arrays)}]', 'green')
-cprint(f'point_cloud shape: {point_cloud_arrays.shape}, range: [{np.min(point_cloud_arrays)}, {np.max(point_cloud_arrays)}]', 'green')
-# cprint(f'depth shape: {depth_arrays.shape}, range: [{np.min(depth_arrays)}, {np.max(depth_arrays)}]', 'green')
+cprint(f'pc shape: {point_cloud_arrays.shape}, range: [{np.min(point_cloud_arrays)}, {np.max(point_cloud_arrays)}]', 'green')
 cprint(f'action shape: {action_arrays.shape}, range: [{np.min(action_arrays)}, {np.max(action_arrays)}]', 'green')
 cprint(f'state shape: {state_arrays.shape}, range: [{np.min(state_arrays)}, {np.max(state_arrays)}]', 'green')
 cprint(f'episode_ends shape: {episode_ends_arrays.shape}, range: [{np.min(episode_ends_arrays)}, {np.max(episode_ends_arrays)}]', 'green')
-# cprint(f'total_count: {total_count}', 'green')
+cprint(f'total_count: {total_count}', 'green')
 cprint(f'Saved zarr file to {save_data_path}', 'green')
 
