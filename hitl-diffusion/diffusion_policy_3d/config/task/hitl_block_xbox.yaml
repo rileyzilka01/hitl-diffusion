@@ -1,24 +1,24 @@
-name: hitl_block
+name: hitl_block_xbox
 
-task_name: block
+task_name: block_xbox
 
 shape_meta: &shape_meta
   # acceptable types: rgb, low_dim
   obs:
-    point_cloud:
-      shape: [2048, 6]
+    back_point_cloud:
+      shape: [1024, 6]
       type: point_cloud
     agent_pos:
-      shape: [4] # 6 for ee pos and orientation + 7 for joint positions
+      shape: [4] # size of the robot state array (1 for gripper position and 3 for ee_position)
       type: low_dimx
   action:
-    shape: [6] # size of the action array (3 for ee_pose)
+    shape: [3] # size of the action array (3 for ee_orientation in rotvec)
 
 env_runner: null # Null because we dont need any simulation environments since were in the real world
 
 dataset:
   _target_: diffusion_policy_3d.dataset.hitl_dataset.HitlDataset
-  zarr_path: data/hitl_block.zarr
+  zarr_path: data/hitl_block_xbox.zarr
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1'}
   pad_after: ${eval:'${n_action_steps}-1'}

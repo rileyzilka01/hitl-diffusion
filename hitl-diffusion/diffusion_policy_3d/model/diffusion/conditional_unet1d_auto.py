@@ -230,12 +230,8 @@ class ConditionalUnet1D(nn.Module):
             ]))
 
         up_modules = nn.ModuleList([])
-        reversed_pairs = list(reversed(in_out[1:]))
-        n_up = len(reversed_pairs)
-        for ind, (dim_in, dim_out) in enumerate(reversed_pairs):
-            is_last = (ind == n_up - 1)
-        # for ind, (dim_in, dim_out) in enumerate(reversed(in_out[1:])):
-        #     is_last = ind >= (len(in_out) - 1)
+        for ind, (dim_in, dim_out) in enumerate(reversed(in_out[1:])):
+            is_last = ind >= (len(in_out) - 1)
             up_modules.append(nn.ModuleList([
                 ConditionalResidualBlock1D(
                     dim_out*2, dim_in, cond_dim=cond_dim,
@@ -332,18 +328,15 @@ class ConditionalUnet1D(nn.Module):
             x = torch.cat((x, h.pop()), dim=1)
             if self.use_up_condition:
                 x = resnet(x, global_feature)
-                # if idx == len(self.up_modules) and len(h_local) > 0:
-                if idx == len(self.up_modules) - 1 and len(h_local) > 0:
+                if idx == len(self.up_modules) and len(h_local) > 0:
                     x = x + h_local[1]
                 x = resnet2(x, global_feature)
             else:
                 x = resnet(x)
-                # if idx == len(self.up_modules) and len(h_local) > 0:
-                if idx == len(self.up_modules) - 1 and len(h_local) > 0:
+                if idx == len(self.up_modules) and len(h_local) > 0:
                     x = x + h_local[1]
                 x = resnet2(x)
-            if x.shape[-1] != 1:
-                x = upsample(x)
+            x = upsample(x)
 
 
         x = self.final_conv(x)
@@ -351,3 +344,4 @@ class ConditionalUnet1D(nn.Module):
         x = einops.rearrange(x, 'b t h -> b h t')
 
         return x
+

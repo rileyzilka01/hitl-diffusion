@@ -7,7 +7,6 @@ from termcolor import cprint
 import os
 import torch
 import pytorch3d.ops as torch3d_ops
-import math
     
 class Visualizer:
     def __init__(self):
@@ -78,6 +77,7 @@ class Visualizer:
             sampled_points, indices = torch3d_ops.sample_farthest_points(points=points.unsqueeze(0), K=K)
             sampled_points = sampled_points.squeeze(0)
             sampled_points = sampled_points.cpu().numpy()
+            indices = indices.cpu().numpy()
         else:
             points = torch.from_numpy(points)
             sampled_points, indices = torch3d_ops.sample_farthest_points(points=points.unsqueeze(0), K=K)
@@ -87,7 +87,7 @@ class Visualizer:
         return sampled_points, indices
     
 
-    def visualize_pointcloud(self, pointcloud, color:tuple=None):
+    def visualize_pointcloud(self, pointcloud, color:list=None):
         trace = self._generate_trace(pointcloud, color=color, size=6, opacity=1.0)
         layout = go.Layout(margin=dict(l=0, r=0, b=0, t=0))
         fig = go.Figure(data=[trace], layout=layout)
@@ -226,12 +226,10 @@ def plot_sequence():
     vis = Visualizer()
 
     WORK_SPACE = [
-        [-0.4, 0.5],
-        [-0.3, 1],
-        [-0.2, 0.3]
+        [-0.4, 0.4],
+        [-0.4, 0.4],
+        [0, 1]
     ]
-
-    extrinsics_matrix = get_homogenous_matrix()
 
     pcs = []
     for pc_path in pc_paths:
@@ -239,15 +237,7 @@ def plot_sequence():
         pc = np.load(pc_path)
         pc = pc[...,:3]
 
-        # scale
-        point_xyz = pc[..., :3]
-        point_xyz = point_xyz - [-0.01789913, -0.02264747, 1.24600857]
-        point_homogeneous = np.hstack((point_xyz, np.ones((point_xyz.shape[0], 1))))
-        point_homogeneous = np.dot(point_homogeneous, extrinsics_matrix)
-        point_xyz = point_homogeneous[..., :-1]
-        pc[..., :3] = point_xyz
-        
-        # Crop
+        # crop
         pc = pc[np.where(
             (pc[..., 0] > WORK_SPACE[0][0]) & (pc[..., 0] < WORK_SPACE[0][1]) &
             (pc[..., 1] > WORK_SPACE[1][0]) & (pc[..., 1] < WORK_SPACE[1][1]) &
@@ -261,128 +251,36 @@ def plot_sequence():
     vis.visualize_pointclouds(pcs, color=color)
 
 def plot_one():
-    pc_path = '/home/rzilka/png_vision/data/block-joy-medium/0/0/depth.npy'
+    # pc_path = '/home/serg/projects/png_vision/data/plate_xbox/0/0/back_depth.npy'
+    pc_path = '/home/serg/projects/png_vision/test_pc.npy'
         
     vis = Visualizer()
 
     pc = np.load(pc_path)
-    pc = pc[...,:3]
+    pc = pc
 
-    # extrinsics_matrix = get_homogenous_matrix()
-
-    # Center the points about the origin
+    # # Crop
+    # WORK_SPACE = [
+    #     [-1.5, 1],
+    #     [-0.5, 0.5],
+    #     [0, 0.9]
+    # ]
+    #
+    # pc = pc[np.where(
+    #     (pc[..., 0] > WORK_SPACE[0][0]) & (pc[..., 0] < WORK_SPACE[0][1]) &
+    #     (pc[..., 1] > WORK_SPACE[1][0]) & (pc[..., 1] < WORK_SPACE[1][1]) &
+    #     (pc[..., 2] > WORK_SPACE[2][0]) & (pc[..., 2] < WORK_SPACE[2][1])
+    # )]
+    #
     # centroid = np.mean(pc[..., :3], axis=0)
-    # pc = pc[..., :3] - centroid
+    # print(centroid)
 
-    # rotate
-    # point_xyz = pc[..., :3]
-    # point_homogeneous = np.hstack((point_xyz, np.ones((point_xyz.shape[0], 1))))
-    # point_homogeneous = np.dot(point_homogeneous, extrinsics_matrix)
-    # point_xyz = point_homogeneous[..., :-1]
-    # pc[..., :3] = point_xyz
-    
-    # Crop
-    # Tall
-    # WORK_SPACE = [
-    #     [-0.5, 0.4],
-    #     [-1.4, 0],
-    #     [-1, -0.4]
-    # ]
-
-    # Short
-    # WORK_SPACE = [
-    #     [-0.4, 0.4],
-    #     [-1.1, 1],
-    #     [-0.4, 1]
-    # ]
-
-    # Short unoriented
-    # WORK_SPACE = [
-    #     [-0.4, 0.4],
-    #     [-1.1, 1],
-    #     [-0.4, 1.2]
-    # ]
-
-    # Medium unoriented
-    WORK_SPACE = [
-        [-0.4, 0.4],
-        [-1.1, 1],
-        [-0.4, 1.4]
-    ]
-
-    # Tall unoriented
-    # WORK_SPACE = [
-    #     [-0.4, 0.4],
-    #     [-0.4, 0.4],
-    #     [0.5, 1.5]
-    # ]
-
-    pc = pc[np.where(
-        (pc[..., 0] > WORK_SPACE[0][0]) & (pc[..., 0] < WORK_SPACE[0][1]) &
-        (pc[..., 1] > WORK_SPACE[1][0]) & (pc[..., 1] < WORK_SPACE[1][1]) &
-        (pc[..., 2] > WORK_SPACE[2][0]) & (pc[..., 2] < WORK_SPACE[2][1])
-    )]
-
-    pc, sample_indices = vis.farthest_point_sampling(pc, use_cuda=True)
-    # Tall
-    # pc[..., :3] = pc[..., :3] - [0.03694567, -0.63618947, -0.85372098]
-    # Short
-    # pc[..., :3] = pc[..., :3] - [-0.04489961, -0.6327338, -0.34466678]
+    # Doesent work
+    # _, sample_indices = vis.farthest_point_sampling(pc[..., :3], use_cuda=True)
+    # pc = pc[sample_indices, ...]
 
     color:tuple=None
     vis.visualize_pointcloud(pc, color=color)
-
-
-def get_homogenous_matrix():
-    # Tall
-    # rx_deg = 37  # Rotation around X
-    # ry_deg = 180  # Rotation around Y
-    # rz_deg = 0  # Rotation around Z
-
-    # Short
-    rx_deg = 60  # Rotation around X
-    ry_deg = 180  # Rotation around Y
-    rz_deg = 0  # Rotation around Z
-
-    # Convert to radians
-    rx = np.radians(rx_deg)
-    ry = np.radians(ry_deg)
-    rz = np.radians(rz_deg)
-
-    # Rotation matrix around X-axis
-    Rx = np.array([
-        [1, 0,          0,           0],
-        [0, np.cos(rx), -np.sin(rx), 0],
-        [0, np.sin(rx), np.cos(rx),  0],
-        [0, 0,          0,           1]
-    ])
-
-    # Rotation matrix around Y-axis
-    Ry = np.array([
-        [np.cos(ry),  0, np.sin(ry), 0],
-        [0,           1, 0,          0],
-        [-np.sin(ry), 0, np.cos(ry), 0],
-        [0,           0, 0,          1]
-    ])
-
-    # Rotation matrix around Z-axis
-    Rz = np.array([
-        [np.cos(rz), -np.sin(rz), 0, 0],
-        [np.sin(rz),  np.cos(rz), 0, 0],
-        [0,           0,          1, 0],
-        [0,           0,          0, 1]
-    ])
-
-    # Original extrinsics matrix (identity in this case)
-    extrinsics_matrix = np.eye(4)
-
-    # Combine rotations (Z * Y * X) — typical convention (can change based on your coordinate system)
-    rotation_combined = Rz @ Ry @ Rx
-
-    # Apply rotation to extrinsics
-    rotated_extrinsics = rotation_combined @ extrinsics_matrix
-
-    return rotated_extrinsics
 
 
 if __name__ == "__main__":

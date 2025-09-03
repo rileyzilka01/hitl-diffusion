@@ -363,8 +363,8 @@ class TrainHITLWorkspace:
             with torch.no_grad():
                 result = self.policy.predict_action(data)
 
-            # print("Action:", result['action'])
-            # print("Action Prediction:", result['action_pred'])
+            print("Action:", result['action'])
+            print("Action Prediction:", result['action_pred'])
 
         else:
             obs_dict = {
@@ -375,8 +375,8 @@ class TrainHITLWorkspace:
             with torch.no_grad():
                 result = self.policy.predict_action(obs_dict)
 
-            # print("Action:", result['action'])
-            # print("Action Prediction:", result['action_pred'])
+            print("Action:", result['action'])
+            print("Action Prediction:", result['action_pred'])
         return result
         
     @property
@@ -449,7 +449,7 @@ class TrainHITLWorkspace:
         else:
             raise NotImplementedError(f"tag {tag} not implemented")
             
-            
+
 
     def load_payload(self, payload, exclude_keys=None, include_keys=None, **kwargs):
         if exclude_keys is None:

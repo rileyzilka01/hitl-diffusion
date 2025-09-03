@@ -1,7 +1,7 @@
 defaults:
   - task: hitl_block
 
-name: train_hitl
+name: train_hitl_auto
 
 task_name: ${task.name}
 shape_meta: ${task.shape_meta}
@@ -9,36 +9,32 @@ exp_name: "debug"
 server: false
 
 # horizon: 4
-horizon: 1
-n_obs_steps: 1
+horizon: 16
+n_obs_steps: 2
 # n_action_steps: 3
-n_action_steps: 1
+n_action_steps: 8
 n_latency_steps: 0
 dataset_obs_steps: ${n_obs_steps}
 keypoint_visible_rate: 1.0
 obs_as_global_cond: True
 
 policy:
-  _target_: diffusion_policy_3d.policy.hitl.HITL
+  _target_: diffusion_policy_3d.policy.hitl_auto.HITL
   use_point_crop: true
   condition_type: film
   use_down_condition: true
   use_mid_condition: true
   use_up_condition: true
   
-  # diffusion_step_embed_dim: 2304
   diffusion_step_embed_dim: 128
   down_dims:
   - 512
   - 1024
   - 2048
-  # - 256
-  # - 512
-  # - 1024
   crop_shape:
   - 80
   - 80
-  encoder_output_dim: 128
+  encoder_output_dim: 128 # 64 for 1024 size and 128 for 2048 size
   horizon: ${horizon}
   kernel_size: 5
   n_action_steps: ${n_action_steps}
@@ -72,8 +68,6 @@ policy:
     final_norm: layernorm # layernorm, none
     normal_channel: false
 
-  rgb_encoder_cfg:
-    encoder_type: resnet18
 
 ema:
   _target_: diffusion_policy_3d.model.diffusion.ema_model.EMAModel
@@ -108,7 +102,7 @@ training:
   device: "cuda:0"
   seed: 42
   debug: False # This will tell the training runner to use small epoch and paramaters for a quick test
-  resume: True # Use checkpoint or not if it exists
+  resume: False # Use checkpoint or not if it exists
   lr_scheduler: cosine
   lr_warmup_steps: 500
   num_epochs: 3000
@@ -145,9 +139,6 @@ checkpoint:
 multi_run:
   run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
   wandb_name_base: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
-
-rgb_encoder_cfg:
-  encoder_type: resnet18
 
 hydra:
   job:

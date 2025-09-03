@@ -1,6 +1,5 @@
 from typing import Dict
 import math
-from numpy import diff
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -13,7 +12,7 @@ import pytorch3d.ops as torch3d_ops
 
 from diffusion_policy_3d.model.common.normalizer import LinearNormalizer
 from diffusion_policy_3d.policy.base_policy import BasePolicy
-from diffusion_policy_3d.model.diffusion.conditional_unet1d import ConditionalUnet1D
+from diffusion_policy_3d.model.diffusion.conditional_unet1d_auto import ConditionalUnet1D
 from diffusion_policy_3d.model.diffusion.mask_generator import LowdimMaskGenerator
 from diffusion_policy_3d.common.pytorch_util import dict_apply
 from diffusion_policy_3d.common.model_util import print_params
@@ -41,7 +40,6 @@ class HITL(BasePolicy):
             use_pc_color=False,
             pointnet_type="pointnet",
             pointcloud_encoder_cfg=None,
-            rgb_encoder_cfg=None,
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -59,13 +57,11 @@ class HITL(BasePolicy):
             
         obs_shape_meta = shape_meta['obs']
         obs_dict = dict_apply(obs_shape_meta, lambda x: x['shape'])
-        print(obs_dict)
 
         obs_encoder = DP3Encoder(observation_space=obs_dict,
             img_crop_shape=crop_shape,
             out_channel=encoder_output_dim,
             pointcloud_encoder_cfg=pointcloud_encoder_cfg,
-            rgb_encoder_cfg=rgb_encoder_cfg,
             use_pc_color=use_pc_color,
             pointnet_type=pointnet_type,
         )
@@ -80,14 +76,13 @@ class HITL(BasePolicy):
                 global_cond_dim = obs_feature_dim
             else:
                 global_cond_dim = obs_feature_dim * n_obs_steps
-
-        # global_cond_dim = 2304
         
 
         self.use_pc_color = use_pc_color
         self.pointnet_type = pointnet_type
         cprint(f"[DiffusionUnetHybridPointcloudPolicy] use_pc_color: {self.use_pc_color}", "yellow")
         cprint(f"[DiffusionUnetHybridPointcloudPolicy] pointnet_type: {self.pointnet_type}", "yellow")
+
 
 
         model = ConditionalUnet1D(
@@ -184,8 +179,10 @@ class HITL(BasePolicy):
         """
         # normalize input
         nobs = self.normalizer.normalize(obs_dict)
-        # if not self.use_pc_color:
-        #     nobs['point_cloud'] = nobs['point_cloud'][..., :3]
+        # this_n_point_cloud = nobs['imagin_robot'][..., :3] # only use coordinate
+        if not self.use_pc_color:
+            nobs['point_cloud'] = nobs['point_cloud'][..., :3]
+        this_n_point_cloud = nobs['point_cloud']
         
         
         value = next(iter(nobs.values()))
@@ -259,11 +256,12 @@ class HITL(BasePolicy):
 
     def compute_loss(self, batch):
         # normalize input
+
         nobs = self.normalizer.normalize(batch['obs'])
         nactions = self.normalizer['action'].normalize(batch['action'])
 
-        # if not self.use_pc_color:
-        #     nobs['point_cloud'] = nobs['point_cloud'][..., :3]
+        if not self.use_pc_color:
+            nobs['point_cloud'] = nobs['point_cloud'][..., :3]
         
         batch_size = nactions.shape[0]
         horizon = nactions.shape[1]
@@ -274,14 +272,11 @@ class HITL(BasePolicy):
         trajectory = nactions
         cond_data = trajectory
         
-        
         if self.obs_as_global_cond:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, 
                 lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))
             nobs_features = self.obs_encoder(this_nobs)
-            # print("nobs features")
-            # print(nobs_features.shape, batch_size)
 
             if "cross_attention" in self.condition_type:
                 # treat as a sequence
@@ -289,6 +284,9 @@ class HITL(BasePolicy):
             else:
                 # reshape back to B, Do
                 global_cond = nobs_features.reshape(batch_size, -1)
+            # this_n_point_cloud = this_nobs['imagin_robot'].reshape(batch_size,-1, *this_nobs['imagin_robot'].shape[1:])
+            this_n_point_cloud = this_nobs['point_cloud'].reshape(batch_size,-1, *this_nobs['point_cloud'].shape[1:])
+            this_n_point_cloud = this_n_point_cloud[..., :3]
         else:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, lambda x: x.reshape(-1, *x.shape[2:]))
@@ -297,7 +295,7 @@ class HITL(BasePolicy):
             nobs_features = nobs_features.reshape(batch_size, horizon, -1)
             cond_data = torch.cat([nactions, nobs_features], dim=-1)
             trajectory = cond_data.detach()
-        
+
         # generate impainting mask
         condition_mask = self.mask_generator(trajectory.shape)
 
@@ -327,8 +325,6 @@ class HITL(BasePolicy):
 
         # Predict the noise residual
         
-        # print("SFOINBFOIDbnoifn")
-        # print(noisy_trajectory.shape, global_cond.shape)
         pred = self.model(sample=noisy_trajectory, 
                         timestep=timesteps, 
                             local_cond=local_cond, 

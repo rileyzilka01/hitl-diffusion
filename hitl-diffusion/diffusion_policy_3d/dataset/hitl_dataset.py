@@ -14,7 +14,7 @@ class HitlDataset(BaseDataset):
             zarr_path, 
             horizon=1,
             pad_before=0,
-            pad_after=0,
+            pad_after=1,
             seed=42,
             val_ratio=0.0,
             max_train_episodes=None,
@@ -60,12 +60,12 @@ class HitlDataset(BaseDataset):
     def get_normalizer(self, mode='limits', **kwargs):
         data = {
             'action': self.replay_buffer['action'], # EE orientation
-            'agent_pos': self.replay_buffer['state'][...,:], # Joint position and EE position, '...,:' selects all dimensions of array for variable size array (different tasks have different state dimensions)
+            # 'agent_pos': self.replay_buffer['state'][...,:], # Joint position and EE position, '...,:' selects all dimensions of array for variable size array (different tasks have different state dimensions)
+            'agent_pos': self.replay_buffer['state'][...,:], # ee pose
             'point_cloud': self.replay_buffer['point_cloud'], # Colorless point cloud
         }
         normalizer = LinearNormalizer()
         normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
-        # normalizer['point_cloud'] = SingleFieldLinearNormalizer.create_identity()
         return normalizer
 
     def __len__(self) -> int:
@@ -73,7 +73,7 @@ class HitlDataset(BaseDataset):
 
     def _sample_to_data(self, sample):
         agent_pos = sample['state'][:,].astype(np.float32) # (agent_posx2, block_posex3)
-        point_cloud = sample['point_cloud'][:,].astype(np.float32) # (T, 1024, 6)
+        point_cloud = sample['point_cloud'][:,].astype(np.float32) # (T, 512, 3)
 
         data = {
             'obs': {
