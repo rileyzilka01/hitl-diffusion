@@ -350,13 +350,10 @@ class DP3Encoder(nn.Module):
         if pointnet_type == "pointnet":
             if use_pc_color:
                 pointcloud_encoder_cfg.in_channels = 6
-                self.p_extractor = PointNetEncoderXYZRGB(**pointcloud_encoder_cfg)
+                self.extractor = PointNetEncoderXYZRGB(**pointcloud_encoder_cfg)
             else:
                 pointcloud_encoder_cfg.in_channels = 3
-                self.p_extractor = PointNetEncoderXYZ(**pointcloud_encoder_cfg)
-                # self.wrist_p_extractor = PointNetEncoderXYZ(**pointcloud_encoder_cfg)
-                # self.back_i_extractor = ImgEncoder(**rgb_encoder_cfg)
-                # self.wrist_i_extractor = ImgEncoder(**rgb_encoder_cfg)
+                self.extractor = PointNetEncoderXYZ(**pointcloud_encoder_cfg)
         else:
             raise NotImplementedError(f"pointnet_type: {pointnet_type}")
 
@@ -377,7 +374,7 @@ class DP3Encoder(nn.Module):
     def forward(self, observations: Dict) -> torch.Tensor:
         points = observations[self.point_cloud_key]
 
-        pn_feat = self.p_extractor(points)    # B * out_channel
+        pn_feat = self.extractor(points)    # B * out_channel
 
         state = observations[self.state_key]
         state_feat = self.state_mlp(state)  # B * 64

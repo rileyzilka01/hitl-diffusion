@@ -19,8 +19,8 @@ import zmq
 import json
 import numpy as np
 import time
-import pickle
 
+from scipy.spatial.transform import Rotation as R
 
 import msgpack
 import msgpack_numpy
@@ -43,7 +43,7 @@ def main(cfg):
     if cfg.server:
         context = zmq.Context()
         socket = context.socket(zmq.REP)
-        socket.bind("tcp://0.0.0.0:5555")  # Listen on all interfaces
+        socket.bind("tcp://192.168.1.161:5555")  # Listen on all interfaces
 
         print("Server up!")
 
