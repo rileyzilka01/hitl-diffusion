@@ -21,6 +21,13 @@ import numpy as np
 import time
 import pickle
 
+
+import msgpack
+import msgpack_numpy
+msgpack_numpy.patch()  # adds np.ndarray support
+msgpack_numpy_encode = msgpack_numpy.encode
+msgpack_numpy_decode = msgpack_numpy.decode
+
 OmegaConf.register_new_resolver("eval", eval, replace=True)
     
 
@@ -41,25 +48,41 @@ def main(cfg):
         print("Server up!")
 
         while True:
-            parts = socket.recv_multipart()
-            meta = pickle.loads(parts[0])
+            message = socket.recv()
             
-            if meta.get("ping", False):
-                reply_meta = pickle.dumps({"pong": True})
-                socket.send_multipart([reply_meta])
+            if message.startswith(b'\x81\xa4ping'):  # msgpack-encoded dict with 'ping'
+                socket.send(msgpack.packb({"pong": True}, use_bin_type=True))
                 continue
 
-            obs_dict = {}
-            for (key, md), buf in zip(meta.items(), parts[1:]):
-                arr = np.frombuffer(buf, dtype=md["dtype"]).reshape(md["shape"])
-                obs_dict[key] = torch.tensor(np.expand_dims(arr, axis=0)).cuda()
+            data = msgpack.unpackb(message, object_hook=msgpack_numpy_decode, raw=False)
 
+            obs_dict = {
+                "point_cloud": torch.from_numpy(np.expand_dims(data['point_cloud'], axis=0)).cuda(non_blocking=True),
+                "agent_pos": torch.from_numpy(np.expand_dims(data['agent_pos'], axis=0)).cuda(non_blocking=True)
+            }
+
+            # Run inference
+            start_time = time.time()
             with torch.no_grad():
                 result = workspace.model_inference(server_call=True, data=obs_dict)
+            inference_time = time.time() - start_time
+            print(f"Inference took {inference_time:.6f} seconds")
 
-            action = result['action_pred'].cpu().numpy()[0]
-            to_send = pickle.dumps({"action": action})
-            socket.send_multipart([to_send])
+            # ABSOLUTE
+            euler_deg = result['action_pred'].cpu().numpy()
+            # ABSOLUTE
+
+            # DIFF
+            # # Convert quaternions to Euler in one shot (vectorized)
+            # action_quats = result['action_pred'].cpu().numpy()  # shape: (1, horizon, 4)
+            # euler_deg = R.from_quat(action_quats[0]).as_euler('xyz', degrees=True)  # shape: (horizon, 3)
+            # DIFF
+
+            # Send back
+            response = {
+                "action": euler_deg.tolist()
+            }
+            socket.send(msgpack.packb(response, default=msgpack_numpy_encode, use_bin_type=True))
 
 if __name__ == "__main__":
     main()
