@@ -1,0 +1,29 @@
+name: hitl_auto_screwdriver
+
+task_name: auto_screwdriver
+
+shape_meta: &shape_meta
+  # acceptable types: rgb, low_dim
+  obs:
+    point_cloud:
+      # shape: [1024, 3] # colorless pointcloud
+      # shape: [1024, 4] # colored pointcloud
+      shape: [2048, 6] # double size colored pointcloud
+      type: point_cloud
+    agent_pos:
+      shape: [8] # size of the robot state array (7 for joint pos and 1 for ee close or open)
+      type: low_dimx
+  action:
+    shape: [8] # size of the action array (7 for joint pos and 1 for ee close or open)
+
+env_runner: null # Null because we dont need any simulation environments since were in the real world
+
+dataset:
+  _target_: diffusion_policy_3d.dataset.hitl_dataset.HitlDataset
+  zarr_path: data/hitl_auto_screwdriver.zarr
+  horizon: ${horizon}
+  pad_before: ${eval:'${n_obs_steps}-1'}
+  pad_after: ${eval:'${n_action_steps}-1'}
+  seed: 42
+  val_ratio: 0.02
+  max_train_episodes: 90
