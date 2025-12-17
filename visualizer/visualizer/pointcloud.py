@@ -8,6 +8,7 @@ import os
 import torch
 import pytorch3d.ops as torch3d_ops
 import math
+import open3d as o3d
     
 class Visualizer:
     def __init__(self):
@@ -85,6 +86,34 @@ class Visualizer:
             sampled_points = sampled_points.numpy()
 
         return sampled_points, indices
+
+    def vfps(points, num_points=1024, voxel_size=0.025, use_cuda=False):
+        # ---- 1. Voxel subsampling (Open3D) ----
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(points[:, :3])
+        # Keep indices of points that survive voxel downsampling
+        pcd = pcd.voxel_down_sample_and_trace(
+            voxel_size,
+            min_bound=points[:, :3].min(axis=0),
+            max_bound=points[:, :3].max(axis=0)
+        )
+        voxel_xyz = np.asarray(pcd[0].points)
+        voxel_indices = np.asarray(pcd[2].flatten())  # indices into original points
+
+        assert voxel_xyz.shape[0] == 1024
+
+        # ---- 2. FPS on voxelized points ----
+        device = torch.device('cuda' if use_cuda and torch.cuda.is_available() else 'cpu')
+        points_tensor = torch.from_numpy(voxel_xyz).float().to(device).unsqueeze(0)
+
+        sampled_xyz_tensor, fps_idx = sample_farthest_points(points_tensor, K=min(num_points, voxel_xyz.shape[0]))
+        sampled_xyz = sampled_xyz_tensor.squeeze(0).cpu().numpy()
+        fps_idx = fps_idx.squeeze(0).cpu().numpy()
+
+        # ---- 3. Map back to original indices for RGB/etc ----
+        sampled_indices = voxel_indices[fps_idx]
+
+        return sampled_xyz, sampled_indices
     
 
     def visualize_pointcloud(self, pointcloud, color:tuple=None):
@@ -94,9 +123,9 @@ class Visualizer:
         
         fig.update_layout(
             scene=dict(
-                xaxis=dict(showbackground=False, showgrid=True, showline=True, linecolor='grey', zerolinecolor='grey', zeroline=False, gridcolor='grey'),
-                yaxis=dict(showbackground=False, showgrid=True, showline=True, linecolor='grey', zerolinecolor='grey', zeroline=False, gridcolor='grey'),
-                zaxis=dict(showbackground=False, showgrid=True, showline=True, linecolor='grey', zerolinecolor='grey', zeroline=False, gridcolor='grey'),
+                xaxis=dict(showbackground=False, showgrid=False, showline=False, zeroline=False),
+                yaxis=dict(showbackground=False, showgrid=False, showline=False, zeroline=False),
+                zaxis=dict(showbackground=False, showgrid=False, showline=False, zeroline=False),
                 bgcolor='white',
             )
         )
@@ -131,9 +160,9 @@ class Visualizer:
         # Create animated figure
         fig.update_layout(
             scene=dict(
-                xaxis=dict(showbackground=False, showgrid=True, showline=True, linecolor='grey', zerolinecolor='grey', zeroline=False, gridcolor='grey'),
-                yaxis=dict(showbackground=False, showgrid=True, showline=True, linecolor='grey', zerolinecolor='grey', zeroline=False, gridcolor='grey'),
-                zaxis=dict(showbackground=False, showgrid=True, showline=True, linecolor='grey', zerolinecolor='grey', zeroline=False, gridcolor='grey'),
+                xaxis=dict(showbackground=False, showgrid=False, showline=False, zeroline=False, showticklabels=False, ticks='', title=None),
+                yaxis=dict(showbackground=False, showgrid=False, showline=False, zeroline=False, showticklabels=False, ticks='', title=None),
+                zaxis=dict(showbackground=False, showgrid=False, showline=False, zeroline=False, showticklabels=False, ticks='', title=None),
                 bgcolor='white',
                 camera=camera
             ),
@@ -154,6 +183,7 @@ class Visualizer:
             )]
         )
         div = pio.to_html(fig, full_html=False)
+        print("WOAH WOAH BUCKO")
 
         @self.app.route('/')
         def index():
@@ -172,7 +202,7 @@ class Visualizer:
                 # aspectmode='cube', 
                 xaxis=dict(
                     showbackground=False,  # 隐藏背景网格
-                    showgrid=True,        # 隐藏网格
+                    showgrid=False,        # 隐藏网格
                     showline=True,         # 显示轴线
                     linecolor='grey',      # 设置轴线颜色为灰色
                     zerolinecolor='grey',  # 设置0线颜色为灰色
@@ -182,7 +212,7 @@ class Visualizer:
                 ),
                 yaxis=dict(
                     showbackground=False,
-                    showgrid=True,
+                    showgrid=False,
                     showline=True,
                     linecolor='grey',
                     zerolinecolor='grey',
@@ -191,7 +221,7 @@ class Visualizer:
                 ),
                 zaxis=dict(
                     showbackground=False,
-                    showgrid=True,
+                    showgrid=False,
                     showline=True,
                     linecolor='grey',
                     zerolinecolor='grey',
@@ -254,19 +284,20 @@ def plot_sequence():
             (pc[..., 2] > WORK_SPACE[2][0]) & (pc[..., 2] < WORK_SPACE[2][1])
         )]
 
-        pc, sample_indices = vis.farthest_point_sampling(pc, use_cuda=True)
+        pc, sample_indices = vis.vfps(pc, use_cuda=True)
         pcs.append(pc)
 
     color:tuple=None
     vis.visualize_pointclouds(pcs, color=color)
 
 def plot_one():
-    pc_path = '/home/rzilka/png_vision/data/block-joy-medium/0/0/depth.npy'
+    pc_path = '/home/rzilka/png_vision/data/hitl_block/51/0/depth.npy'
         
     vis = Visualizer()
 
     pc = np.load(pc_path)
     pc = pc[...,:3]
+    print(pc.shape)
 
     # extrinsics_matrix = get_homogenous_matrix()
 
@@ -304,11 +335,11 @@ def plot_one():
     # ]
 
     # Medium unoriented
-    WORK_SPACE = [
-        [-0.4, 0.4],
-        [-1.1, 1],
-        [-0.4, 1.4]
-    ]
+    # WORK_SPACE = [
+    #     [-0.4, 0.4],
+    #     [-1.1, 1],
+    #     [-0.4, 1.4]
+    # ]
 
     # Tall unoriented
     # WORK_SPACE = [
@@ -317,13 +348,13 @@ def plot_one():
     #     [0.5, 1.5]
     # ]
 
-    pc = pc[np.where(
-        (pc[..., 0] > WORK_SPACE[0][0]) & (pc[..., 0] < WORK_SPACE[0][1]) &
-        (pc[..., 1] > WORK_SPACE[1][0]) & (pc[..., 1] < WORK_SPACE[1][1]) &
-        (pc[..., 2] > WORK_SPACE[2][0]) & (pc[..., 2] < WORK_SPACE[2][1])
-    )]
+    # pc = pc[np.where(
+    #     (pc[..., 0] > WORK_SPACE[0][0]) & (pc[..., 0] < WORK_SPACE[0][1]) &
+    #     (pc[..., 1] > WORK_SPACE[1][0]) & (pc[..., 1] < WORK_SPACE[1][1]) &
+    #     (pc[..., 2] > WORK_SPACE[2][0]) & (pc[..., 2] < WORK_SPACE[2][1])
+    # )]
 
-    pc, sample_indices = vis.farthest_point_sampling(pc, use_cuda=True)
+    # pc, sample_indices = vis.farthest_point_sampling(pc, use_cuda=True)
     # Tall
     # pc[..., :3] = pc[..., :3] - [0.03694567, -0.63618947, -0.85372098]
     # Short

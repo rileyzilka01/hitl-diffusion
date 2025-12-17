@@ -4,156 +4,11 @@ import pickle
 import tqdm
 import numpy as np
 import torch
-import pytorch3d.ops as torch3d_ops
 import torchvision
 from termcolor import cprint
-import re
 import time
 import sys
-
-
-import numpy as np
-import torch
-import pytorch3d.ops as torch3d_ops
-import torchvision
-import socket
 import pickle
-
-from scipy.spatial.transform import Rotation as R
-
-def farthest_point_sampling(points, num_points=1024, use_cuda=True):
-    K = [num_points]
-    if use_cuda:
-        points = torch.from_numpy(points).cuda()
-        sampled_points, indices = torch3d_ops.sample_farthest_points(points=points.unsqueeze(0), K=K)
-        sampled_points = sampled_points.squeeze(0)
-        sampled_points = sampled_points.cpu().numpy()
-    else:
-        points = torch.from_numpy(points)
-        sampled_points, indices = torch3d_ops.sample_farthest_points(points=points.unsqueeze(0), K=K)
-        sampled_points = sampled_points.squeeze(0)
-        sampled_points = sampled_points.numpy()
-
-    return sampled_points, indices
-
-def preprocess_point_cloud(points, use_cuda=True):
-    
-    num_points = 1024
-    orientation = False
-    if orientation:
-        extrinsics_matrix = get_homogenous_matrix()
-
-        point_xyz = points[..., :3]
-        point_homogeneous = np.hstack((point_xyz, np.ones((point_xyz.shape[0], 1))))
-        point_homogeneous = np.dot(point_homogeneous, extrinsics_matrix)
-        points[..., :3] = point_homogeneous[..., :3]
-
-    # Crop
-    if orientation:
-        # Tall Cam
-        # WORK_SPACE = [
-        #     [-0.5, 0.4],
-        #     [-1.4, 0],
-        #     [-1, -0.4]
-        # ]
-
-        # Short Cam
-        WORK_SPACE = [
-            [-0.4, 0.4],
-            [-1.1, 1],
-            [-0.4, 1]
-        ]
-
-    else:
-        # # Tall Unoriented
-        # WORK_SPACE = [
-        #     [-0.4, 0.4],
-        #     [-0.4, 0.4],
-        #     [0.5, 1.5]
-        # ]
-
-        # Medium
-        WORK_SPACE = [
-            [-0.4, 0.4],
-            [-1.1, 1],
-            [-0.4, 1.4]
-        ]
-
-        # Short Unoriented
-        # WORK_SPACE = [
-        #     [-0.4, 0.4],
-        #     [-1.1, 1],
-        #     [-0.4, 1.2]
-        # ]
-
-    points = points[np.where(
-        (points[..., 0] > WORK_SPACE[0][0]) & (points[..., 0] < WORK_SPACE[0][1]) &
-        (points[..., 1] > WORK_SPACE[1][0]) & (points[..., 1] < WORK_SPACE[1][1]) &
-        (points[..., 2] > WORK_SPACE[2][0]) & (points[..., 2] < WORK_SPACE[2][1])
-    )]
-
-    points_xyz = points[..., :3]
-    points_xyz, sample_indices = farthest_point_sampling(points_xyz, num_points, use_cuda)
-    if orientation:
-        # Tall Cam
-        # points_xyz[..., :3] -= [0.03694567, -0.63618947, -0.85372098]
-        # Short Cam
-        points_xyz[..., :3] -= [-0.04489961, -0.6327338, -0.34466678]
-    sample_indices = sample_indices.cpu()
-    points_rgb = points[sample_indices, 3:][0]
-    points = np.hstack((points_xyz, points_rgb))
-    return points
-
-def get_homogenous_matrix():
-    # Tall Cam
-    # rx_deg = 37  # Rotation around X
-    # ry_deg = 180  # Rotation around Y
-    # rz_deg = 0  # Rotation around Z
-
-    # Short Cam
-    rx_deg = 60  # Rotation around X
-    ry_deg = 180  # Rotation around Y
-    rz_deg = 0  # Rotation around Z
-
-    # Convert to radians
-    rx = np.radians(rx_deg)
-    ry = np.radians(ry_deg)
-    rz = np.radians(rz_deg)
-
-    # Rotation matrix around X-axis
-    Rx = np.array([
-        [1, 0,          0,           0],
-        [0, np.cos(rx), -np.sin(rx), 0],
-        [0, np.sin(rx), np.cos(rx),  0],
-        [0, 0,          0,           1]
-    ])
-
-    # Rotation matrix around Y-axis
-    Ry = np.array([
-        [np.cos(ry),  0, np.sin(ry), 0],
-        [0,           1, 0,          0],
-        [-np.sin(ry), 0, np.cos(ry), 0],
-        [0,           0, 0,          1]
-    ])
-
-    # Rotation matrix around Z-axis
-    Rz = np.array([
-        [np.cos(rz), -np.sin(rz), 0, 0],
-        [np.sin(rz),  np.cos(rz), 0, 0],
-        [0,           0,          1, 0],
-        [0,           0,          0, 1]
-    ])
-
-    # Original extrinsics matrix (identity in this case)
-    extrinsics_matrix = np.eye(4)
-
-    # Combine rotations (Z * Y * X) — typical convention (can change based on your coordinate system)
-    rotation_combined = Rz @ Ry @ Rx
-
-    # Apply rotation to extrinsics
-    rotated_extrinsics = rotation_combined @ extrinsics_matrix
-
-    return rotated_extrinsics
 
 def select_evenly_spaced(array, max_length=48):
     n = len(array)
@@ -193,11 +48,25 @@ state_arrays = []
 action_arrays = []
 episode_ends_arrays = []
 
-use_gripper = False
-ee_centroid = False
-joint_pos = False
-stage = True
-auto = False
+shared = True
+demo_length = 1024
+num_prompts = 3
+
+if shared:
+    # SHARED
+    use_gripper = False
+    joint_pos = False
+    stage = False
+    auto = False
+    # SHARED
+else:
+    # AUTO
+    use_gripper = True
+    joint_pos = True
+    stage = False
+    auto = True
+    # AUTO
+
 
 if os.path.exists(save_data_path):
     cprint('Data already exists at {}'.format(save_data_path), 'red')
@@ -216,10 +85,11 @@ for demo_dir in demo_dirs:
     cprint('Processing {}'.format(demo_dir), 'green')
 
     demo_timesteps = sorted([int(d) for d in os.listdir(demo_dir)])
-    demo_timesteps = select_evenly_spaced(demo_timesteps, max_length=256)
+    demo_timesteps = select_evenly_spaced(demo_timesteps, max_length=demo_length)
 
     # For getting the difference instead of absolute orientation
     prev_ee_orientation = None
+    prev_joint_pos = None
 
     for step_idx in tqdm.tqdm(range(len(demo_timesteps))):
         timestep_dir = os.path.join(demo_dir, str(demo_timesteps[step_idx]))
@@ -231,21 +101,37 @@ for demo_dir in demo_dirs:
         
         state_info = np.load(os.path.join(timestep_dir, 'low_dim.npy'), allow_pickle=True).item()
         if use_gripper:
-            # robot_state = list(state_info['joints']['position'])[:8] + state_info['ee_position'] + ([state_info['stage']] if stage else []) # shared control
-            robot_state = list(state_info['joints']['position'])[:8] + ([state_info['stage']] if stage else []) # auto
-            if use_gripper:
-                robot_state[7] = 1 if robot_state[7] > 0.3 else -1
-        else:
-            robot_state = list(state_info['joints']['position'])[:7] + state_info['ee_position'] + ([state_info['stage']] if stage else [])
+            if shared:
+                # ABSOLUTE
+                robot_state = list(state_info['joints']['position'])[:8] + state_info['ee_position']
+                # ABSOLUTE
+            else:
+                # DIFF
+                if prev_joint_pos is None:
+                    robot_state = list(np.zeros(8))
+                    prev_joint_pos = list(state_info['joints']['position'])[:7]
+                else:
+                    current = list(state_info['joints']['position'])[:7]
+                    robot_state = [current[i] - prev_joint_pos[i] for i in range(len(current))] + [0]
+                    prev_joint_pos = current
+                # DIFF
+
+            robot_state[7] = 1 if robot_state[7] > 0.3 else -1
+        else: # shared control
+            centroids = list(state_info['centroids'])
+            if len(centroids) == 0:
+                centroids = [0] * 3 * num_prompts
+            differences = []
+            for i in range(num_prompts):
+                for j in range(i+1, num_prompts):
+                    differences += [centroids[i*3] - centroids[j*3], centroids[(i*3)+1] - centroids[(j*3)+1], centroids[(i*3)+2] - centroids[(j*3)+2]]
+
+            robot_state = list(state_info['joints']['position'])[:7] + state_info['ee_position'] + differences
 
         if not joint_pos:
             robot_state = robot_state[7:]
 
         obs_pointcloud = np.load(os.path.join(timestep_dir, 'depth.npy'), allow_pickle=True)
-        if ee_centroid:
-            a = state_info['ee_position']
-            b = np.mean(obs_pointcloud[..., :3], axis=0)
-            robot_state += [a[i] - b[i] for i in range(3)]
 
         ee_orientation = state_info['ee_orientation']
 
@@ -254,9 +140,10 @@ for demo_dir in demo_dirs:
             action = ee_orientation # for shared control
         elif auto:
             action = robot_state # for auto
+            robot_state = list(state_info['joints']['position'])[:7]
         # ABSOLUTE
 
-        # DIFF
+        # DIFF wasn't really useful because for shared controls diferences may be arbitrary, and if the human changes lots at first and not at goal nothing will happen
         # if prev_ee_orientation == None:
         #     action = [0, 0, 0]
         # else:
@@ -282,6 +169,9 @@ for demo_dir in demo_dirs:
         total_count += 1
     
     episode_ends_arrays.append(total_count)
+
+if auto == True:
+    action_arrays = [action_arrays[1:], action_arrays[0]]
 
 
 # create zarr file
