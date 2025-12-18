@@ -1,33 +1,31 @@
-import copy
-import math
-import time
 from typing import Dict
-
-import pytorch3d.ops as torch3d_ops
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
-from diffusion_policy_3d.common.model_util import print_params
-from diffusion_policy_3d.common.pytorch_util import dict_apply
-from diffusion_policy_3d.model.common.normalizer import LinearNormalizer
-from diffusion_policy_3d.model.diffusion.mask_generator import \
-    LowdimMaskGenerator
-from diffusion_policy_3d.model.diffusion.simple_conditional_unet1d import \
-    ConditionalUnet1D
-from diffusion_policy_3d.model.vision.pointnet_extractor import DP3Encoder
-from diffusion_policy_3d.policy.base_policy import BasePolicy
 from einops import rearrange, reduce
+from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 from termcolor import cprint
+import copy
+import time
+import pytorch3d.ops as torch3d_ops
 
+from diffusion_policy_3d.model.common.normalizer import LinearNormalizer
+from diffusion_policy_3d.policy.base_policy import BasePolicy
+from diffusion_policy_3d.model.diffusion.conditional_unet1d import ConditionalUnet1D
+from diffusion_policy_3d.model.diffusion.mask_generator import LowdimMaskGenerator
+from diffusion_policy_3d.common.pytorch_util import dict_apply
+from diffusion_policy_3d.common.model_util import print_params
+from diffusion_policy_3d.model.vision.pointnet_extractor import DP3Encoder
 
-class FlowMatching(BasePolicy):
+class HITL(BasePolicy):
     def __init__(self, 
             shape_meta: dict,
+            noise_scheduler: DDPMScheduler,
             horizon, 
             n_action_steps, 
             n_obs_steps,
-            num_inference_steps=10,
+            num_inference_steps=None,
             obs_as_global_cond=True,
             diffusion_step_embed_dim=256,
             down_dims=(256,512,1024),
@@ -42,15 +40,11 @@ class FlowMatching(BasePolicy):
             use_pc_color=False,
             pointnet_type="pointnet",
             pointcloud_encoder_cfg=None,
-            weighted_loss=False,
             # parameters passed to step
             **kwargs):
         super().__init__()
 
         self.condition_type = condition_type
-
-        assert obs_as_global_cond is True, "only implemented global conditioning for flow matching as of now"
-
         # parse shape_meta
         action_shape = shape_meta['action']['shape']
         self.action_shape = action_shape
@@ -64,14 +58,13 @@ class FlowMatching(BasePolicy):
         obs_shape_meta = shape_meta['obs']
         obs_dict = dict_apply(obs_shape_meta, lambda x: x['shape'])
 
-
         obs_encoder = DP3Encoder(observation_space=obs_dict,
-                                                   img_crop_shape=crop_shape,
-                                                out_channel=encoder_output_dim,
-                                                pointcloud_encoder_cfg=pointcloud_encoder_cfg,
-                                                use_pc_color=use_pc_color,
-                                                pointnet_type=pointnet_type,
-                                                )
+            img_crop_shape=crop_shape,
+            out_channel=encoder_output_dim,
+            pointcloud_encoder_cfg=pointcloud_encoder_cfg,
+            use_pc_color=use_pc_color,
+            pointnet_type=pointnet_type,
+        )
 
         # create diffusion model
         obs_feature_dim = obs_encoder.output_shape()
@@ -87,8 +80,9 @@ class FlowMatching(BasePolicy):
 
         self.use_pc_color = use_pc_color
         self.pointnet_type = pointnet_type
-        cprint(f"[SDP3] use_pc_color: {self.use_pc_color}", "yellow")
-        cprint(f"[SDP3] pointnet_type: {self.pointnet_type}", "yellow")
+        cprint(f"[DiffusionUnetHybridPointcloudPolicy] use_pc_color: {self.use_pc_color}", "yellow")
+        cprint(f"[DiffusionUnetHybridPointcloudPolicy] pointnet_type: {self.pointnet_type}", "yellow")
+
 
 
         model = ConditionalUnet1D(
@@ -107,8 +101,10 @@ class FlowMatching(BasePolicy):
 
         self.obs_encoder = obs_encoder
         self.model = model
+        self.noise_scheduler = noise_scheduler
         
         
+        self.noise_scheduler_pc = copy.deepcopy(noise_scheduler)
         self.mask_generator = LowdimMaskGenerator(
             action_dim=action_dim,
             obs_dim=0 if obs_as_global_cond else obs_feature_dim,
@@ -125,15 +121,15 @@ class FlowMatching(BasePolicy):
         self.n_obs_steps = n_obs_steps
         self.obs_as_global_cond = obs_as_global_cond
         self.kwargs = kwargs
-        self.weighted_loss = weighted_loss
 
+        if num_inference_steps is None:
+            num_inference_steps = noise_scheduler.config.num_train_timesteps
         self.num_inference_steps = num_inference_steps
 
 
         print_params(self)
         
     # ========= inference  ============
-    # NOTE COLE: this is basically the forward pass.
     def conditional_sample(self, 
             condition_data, condition_mask,
             condition_data_pc=None, condition_mask_pc=None,
@@ -143,38 +139,39 @@ class FlowMatching(BasePolicy):
             **kwargs
             ):
         model = self.model
+        scheduler = self.noise_scheduler
 
-        # Start from random noise.
-        trajectory = torch.normal(0, 1,
+
+        trajectory = torch.randn(
             size=condition_data.shape, 
             dtype=condition_data.dtype,
             device=condition_data.device)
 
-        delta = 1.0 / self.num_inference_steps
-        for t in torch.arange(0, 1, delta):
-            # Get time encoding for this step
-            tau_tensor = torch.tensor([t], dtype=torch.float, device=condition_data.device)
-            
-            # in diffusion policy, but i think we will always do global conditioning
-            # so idt this will ever matter since the cond mask will be all 0s
-            # trajectory[condition_mask] = trajectory[condition_mask]
+        # set step values
+        scheduler.set_timesteps(self.num_inference_steps)
 
-            step = model(sample=trajectory,
-                                timestep=tau_tensor, 
+
+        for t in scheduler.timesteps:
+            # 1. apply conditioning
+            trajectory[condition_mask] = condition_data[condition_mask]
+
+
+            model_output = model(sample=trajectory,
+                                timestep=t, 
                                 local_cond=local_cond, global_cond=global_cond)
             
-            # Euler integration step
-            trajectory = trajectory - delta * step
+            # 3. compute previous image: x_t -> x_t-1
+            trajectory = scheduler.step(
+                model_output, t, trajectory, ).prev_sample
             
                 
         # finally make sure conditioning is enforced
-        # trajectory[condition_mask] = condition_data[condition_mask]   
+        trajectory[condition_mask] = condition_data[condition_mask]   
 
 
         return trajectory
 
 
-    # NOTE COLE I don't think this has to change at all.
     def predict_action(self, obs_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
         obs_dict: must include "obs" key
@@ -187,7 +184,6 @@ class FlowMatching(BasePolicy):
             nobs['point_cloud'] = nobs['point_cloud'][..., :3]
         this_n_point_cloud = nobs['point_cloud']
         
-        # print(nobs)
         
         value = next(iter(nobs.values()))
         B, To = value.shape[:2]
@@ -227,7 +223,7 @@ class FlowMatching(BasePolicy):
             cond_data[:,:To,Da:] = nobs_features
             cond_mask[:,:To,Da:] = True
 
-        # run sampling via euler integration
+        # run sampling
         nsample = self.conditional_sample(
             cond_data, 
             cond_mask,
@@ -245,6 +241,8 @@ class FlowMatching(BasePolicy):
         action = action_pred[:,start:end]
         
         # get prediction
+
+
         result = {
             'action': action,
             'action_pred': action_pred,
@@ -258,12 +256,12 @@ class FlowMatching(BasePolicy):
 
     def compute_loss(self, batch):
         # normalize input
+
         nobs = self.normalizer.normalize(batch['obs'])
         nactions = self.normalizer['action'].normalize(batch['action'])
 
         if not self.use_pc_color:
             nobs['point_cloud'] = nobs['point_cloud'][..., :3]
-        
         
         batch_size = nactions.shape[0]
         horizon = nactions.shape[1]
@@ -273,6 +271,8 @@ class FlowMatching(BasePolicy):
         global_cond = None
         trajectory = nactions
         cond_data = trajectory
+        
+       
         
         if self.obs_as_global_cond:
             # reshape B, T, ... to B*T
@@ -297,21 +297,27 @@ class FlowMatching(BasePolicy):
             nobs_features = nobs_features.reshape(batch_size, horizon, -1)
             cond_data = torch.cat([nactions, nobs_features], dim=-1)
             trajectory = cond_data.detach()
-
-        # NOTE COLE: The impainting was already here - I'm not really sure if we want/need this
-        # but supposedly it helps. We could remove.
+        
         # generate impainting mask
         condition_mask = self.mask_generator(trajectory.shape)
 
         # Sample noise that we'll add to the images
         noise = torch.randn(trajectory.shape, device=trajectory.device)
 
+        
         bsz = trajectory.shape[0]
-        # Sample a random timestep for each image (in range 0, 1), uniform sampled.
-        timesteps = torch.rand(bsz, device=trajectory.device).float()
+        # Sample a random timestep for each image
+        timesteps = torch.randint(
+            0, self.noise_scheduler.config.num_train_timesteps, 
+            (bsz,), device=trajectory.device
+        ).long()
 
-        # Interpolate trajectory and noise using the timesteps
-        noisy_trajectory = timesteps.view(-1, 1, 1) * trajectory + (1 - timesteps).view(-1, 1, 1) * noise
+        # Add noise to the clean images according to the noise magnitude at each timestep
+        # (this is the forward diffusion process)
+        noisy_trajectory = self.noise_scheduler.add_noise(
+            trajectory, noise, timesteps)
+        
+
 
         # compute loss mask
         loss_mask = ~condition_mask
@@ -319,21 +325,35 @@ class FlowMatching(BasePolicy):
         # apply conditioning
         noisy_trajectory[condition_mask] = cond_data[condition_mask]
 
-        # Predict the vector field
+        # Predict the noise residual
+        
         pred = self.model(sample=noisy_trajectory, 
-                            timestep=timesteps, 
+                        timestep=timesteps, 
                             local_cond=local_cond, 
                             global_cond=global_cond)
 
-        target = noise - trajectory
 
+        pred_type = self.noise_scheduler.config.prediction_type 
+        if pred_type == 'epsilon':
+            target = noise
+        elif pred_type == 'sample':
+            target = trajectory
+        elif pred_type == 'v_prediction':
+            # https://github.com/huggingface/diffusers/blob/main/src/diffusers/schedulers/scheduling_dpmsolver_multistep.py
+            # https://github.com/huggingface/diffusers/blob/v0.11.1-patch/src/diffusers/schedulers/scheduling_dpmsolver_multistep.py
+            # sigma = self.noise_scheduler.sigmas[timesteps]
+            # alpha_t, sigma_t = self.noise_scheduler._sigma_to_alpha_sigma_t(sigma)
+            self.noise_scheduler.alpha_t = self.noise_scheduler.alpha_t.to(self.device)
+            self.noise_scheduler.sigma_t = self.noise_scheduler.sigma_t.to(self.device)
+            alpha_t, sigma_t = self.noise_scheduler.alpha_t[timesteps], self.noise_scheduler.sigma_t[timesteps]
+            alpha_t = alpha_t.unsqueeze(-1).unsqueeze(-1)
+            sigma_t = sigma_t.unsqueeze(-1).unsqueeze(-1)
+            v_t = alpha_t * noise - sigma_t * trajectory
+            target = v_t
+        else:
+            raise ValueError(f"Unsupported prediction type {pred_type}")
 
         loss = F.mse_loss(pred, target, reduction='none')
-
-        if self.weighted_loss:
-            weights = batch["weights"].unsqueeze(-1) 
-            loss = weights * loss
-            
         loss = loss * loss_mask.type(loss.dtype)
         loss = reduce(loss, 'b ... -> b (...)', 'mean')
         loss = loss.mean()
@@ -342,6 +362,12 @@ class FlowMatching(BasePolicy):
         loss_dict = {
                 'bc_loss': loss.item(),
             }
+
+        # print(f"t2-t1: {t2-t1:.3f}")
+        # print(f"t3-t2: {t3-t2:.3f}")
+        # print(f"t4-t3: {t4-t3:.3f}")
+        # print(f"t5-t4: {t5-t4:.3f}")
+        # print(f"t6-t5: {t6-t5:.3f}")
         
         return loss, loss_dict
 
