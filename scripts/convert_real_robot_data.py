@@ -52,6 +52,7 @@ shared = True
 demo_length = 1024
 num_prompts = 3
 
+centroid_only = False
 if shared:
     # SHARED
     use_gripper = False
@@ -119,8 +120,9 @@ for demo_dir in demo_dirs:
             robot_state[7] = 1 if robot_state[7] > 0.3 else -1
         else: # shared control
             centroids = list(state_info['centroids'])
-            if len(centroids) == 0:
-                centroids = [0] * 3 * num_prompts
+            # print(f"CENTS: {[f'{abc: .4f}' for abc in centroids]}")
+            if len(centroids) < 9:
+                centroids += [0] * ((3*num_prompts)-len(centroids))
             differences = []
             for i in range(num_prompts):
                 for j in range(i+1, num_prompts):
@@ -142,6 +144,11 @@ for demo_dir in demo_dirs:
             action = robot_state # for auto
             robot_state = list(state_info['joints']['position'])[:7]
         # ABSOLUTE
+
+        # TESTING ONLY HAVING DIFFERENCES
+        if centroid_only:
+            robot_state = robot_state[-9:]
+            # print(f"ROBOS: {[f'{abc: .4f}' for abc in robot_state]}")
 
         # DIFF wasn't really useful because for shared controls diferences may be arbitrary, and if the human changes lots at first and not at goal nothing will happen
         # if prev_ee_orientation == None:
