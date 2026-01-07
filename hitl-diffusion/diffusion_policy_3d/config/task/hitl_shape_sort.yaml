@@ -1,0 +1,30 @@
+name: hitl_shape_sort
+
+task_name: shape_sort
+
+num_prompts: 3
+
+shape_meta: &shape_meta
+  # acceptable types: rgb, low_dim
+  obs:
+    point_cloud:
+      shape: [2048, 3]
+      type: point_cloud
+    agent_pos:
+      shape: [12] # size of the robot state array (3 for ee_position, 9 for central differences)
+      type: low_dimx
+  action:
+    # shape: [4] # size of the action array (4 for ee_orientation in qx, qy, qz, qw)
+    shape: [3] # size of the action array (4 for ee_orientation in yaw pitch roll)
+
+env_runner: null # Null because we dont need any simulation environments since were in the real world
+
+dataset:
+  _target_: diffusion_policy_3d.dataset.hitl_dataset.HitlDataset
+  zarr_path: data/hitl_shape_sort.zarr
+  horizon: ${horizon}
+  pad_before: ${eval:'${n_obs_steps}-1'}
+  pad_after: ${eval:'${n_action_steps}-1'}
+  seed: 42
+  val_ratio: 0.02
+  max_train_episodes: 90
