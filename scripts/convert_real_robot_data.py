@@ -52,6 +52,9 @@ shared = True
 demo_length = 1024
 num_prompts = 3
 
+train_demo_count = 5 #how many demonstrations to use from total, just takes first x
+# train_demo_count = len(demo_dirs)+1 #default
+
 centroid_only = False
 if shared:
     # SHARED
@@ -82,7 +85,7 @@ if os.path.exists(save_data_path):
         exit()
 os.makedirs(save_data_path, exist_ok=True)
 
-for demo_dir in demo_dirs:
+for demo_dir in demo_dirs[:train_demo_count]: 
     cprint('Processing {}'.format(demo_dir), 'green')
 
     demo_timesteps = sorted([int(d) for d in os.listdir(demo_dir)])
