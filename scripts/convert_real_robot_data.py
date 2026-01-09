@@ -52,8 +52,10 @@ shared = True
 demo_length = 1024
 num_prompts = 3
 
-train_demo_count = 5 #how many demonstrations to use from total, just takes first x
-# train_demo_count = len(demo_dirs)+1 #default
+# train_demo_count = 5 #how many demonstrations to use from total, just takes first x
+train_demo_count = len(demo_dirs)+1 #default
+
+use_pointcloud = False # use pointcloud in conditioning or not
 
 centroid_only = False
 if shared:
@@ -136,7 +138,8 @@ for demo_dir in demo_dirs[:train_demo_count]:
         if not joint_pos:
             robot_state = robot_state[7:]
 
-        obs_pointcloud = np.load(os.path.join(timestep_dir, 'depth.npy'), allow_pickle=True)
+        if use_pointcloud:
+            obs_pointcloud = np.load(os.path.join(timestep_dir, 'depth.npy'), allow_pickle=True)
 
         ee_orientation = state_info['ee_orientation']
 
@@ -172,7 +175,8 @@ for demo_dir in demo_dirs[:train_demo_count]:
 
         # img_arrays.append(obs_image)
         action_arrays.append(action)
-        point_cloud_arrays.append(obs_pointcloud)
+        if use_pointcloud:
+            point_cloud_arrays.append(obs_pointcloud)
         # depth_arrays.append(obs_depth)
         state_arrays.append(robot_state)
 
@@ -192,7 +196,8 @@ zarr_meta = zarr_root.create_group('meta')
 # img_arrays = np.stack(img_arrays, axis=0)
 # if img_arrays.shape[1] == 3: # make channel last
     # img_arrays = np.transpose(img_arrays, (0,2,3,1))
-point_cloud_arrays = np.stack(point_cloud_arrays, axis=0)
+if use_pointcloud:
+    point_cloud_arrays = np.stack(point_cloud_arrays, axis=0)
 # depth_arrays = np.stack(depth_arrays, axis=0)
 action_arrays = np.stack(action_arrays, axis=0)
 state_arrays = np.stack(state_arrays, axis=0)
@@ -200,7 +205,8 @@ episode_ends_arrays = np.array(episode_ends_arrays)
 
 compressor = zarr.Blosc(cname='zstd', clevel=3, shuffle=1)
 # img_chunk_size = (100, img_arrays.shape[1], img_arrays.shape[2], img_arrays.shape[3])
-point_cloud_chunk_size = (100, point_cloud_arrays.shape[1], point_cloud_arrays.shape[2])
+if use_pointcloud:
+    point_cloud_chunk_size = (100, point_cloud_arrays.shape[1], point_cloud_arrays.shape[2])
 # depth_chunk_size = (100, depth_arrays.shape[1], depth_arrays.shape[2])
 if len(action_arrays.shape) == 2:
     action_chunk_size = (100, action_arrays.shape[1])
@@ -209,7 +215,8 @@ elif len(action_arrays.shape) == 3:
 else:
     raise NotImplementedError
 # zarr_data.create_dataset('img', data=img_arrays, chunks=img_chunk_size, dtype='uint8', overwrite=True, compressor=compressor)
-zarr_data.create_dataset('point_cloud', data=point_cloud_arrays, chunks=point_cloud_chunk_size, dtype='float64', overwrite=True, compressor=compressor)
+if use_pointcloud:
+    zarr_data.create_dataset('point_cloud', data=point_cloud_arrays, chunks=point_cloud_chunk_size, dtype='float64', overwrite=True, compressor=compressor)
 # zarr_data.create_dataset('depth', data=depth_arrays, chunks=depth_chunk_size, dtype='float64', overwrite=True, compressor=compressor)
 zarr_data.create_dataset('action', data=action_arrays, chunks=action_chunk_size, dtype='float32', overwrite=True, compressor=compressor)
 zarr_data.create_dataset('state', data=state_arrays, chunks=(100, state_arrays.shape[1]), dtype='float32', overwrite=True, compressor=compressor)
@@ -217,7 +224,8 @@ zarr_meta.create_dataset('episode_ends', data=episode_ends_arrays, chunks=(100,)
 
 # print shape
 # cprint(f'img shape: {img_arrays.shape}, range: [{np.min(img_arrays)}, {np.max(img_arrays)}]', 'green')
-cprint(f'point_cloud shape: {point_cloud_arrays.shape}, range: [{np.min(point_cloud_arrays)}, {np.max(point_cloud_arrays)}]', 'green')
+if use_pointcloud:
+    cprint(f'point_cloud shape: {point_cloud_arrays.shape}, range: [{np.min(point_cloud_arrays)}, {np.max(point_cloud_arrays)}]', 'green')
 # cprint(f'depth shape: {depth_arrays.shape}, range: [{np.min(depth_arrays)}, {np.max(depth_arrays)}]', 'green')
 cprint(f'action shape: {action_arrays.shape}, range: [{np.min(action_arrays)}, {np.max(action_arrays)}]', 'green')
 cprint(f'state shape: {state_arrays.shape}, range: [{np.min(state_arrays)}, {np.max(state_arrays)}]', 'green')
