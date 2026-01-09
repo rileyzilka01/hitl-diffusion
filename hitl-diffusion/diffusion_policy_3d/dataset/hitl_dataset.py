@@ -19,11 +19,17 @@ class HitlDataset(BaseDataset):
             val_ratio=0.0,
             max_train_episodes=None,
             task_name=None,
+            use_pointcloud=True,
             ):
         super().__init__()
+        self.use_pointcloud = use_pointcloud
         self.task_name = task_name
-        self.replay_buffer = ReplayBuffer.copy_from_path(
+        if self.use_pointcloud:
+            self.replay_buffer = ReplayBuffer.copy_from_path(
             zarr_path, keys=['state', 'action', 'point_cloud'])
+        else:
+            self.replay_buffer = ReplayBuffer.copy_from_path(
+            zarr_path, keys=['state', 'action'])
         val_mask = get_val_mask(
             n_episodes=self.replay_buffer.n_episodes, 
             val_ratio=val_ratio,
@@ -58,11 +64,17 @@ class HitlDataset(BaseDataset):
         return val_set
 
     def get_normalizer(self, mode='limits', **kwargs):
-        data = {
-            'action': self.replay_buffer['action'], # EE orientation
-            'agent_pos': self.replay_buffer['state'][...,:], # Joint position and EE position, '...,:' selects all dimensions of array for variable size array (different tasks have different state dimensions)
-            'point_cloud': self.replay_buffer['point_cloud'], # Colorless point cloud
-        }
+        if self.use_pointcloud:
+            data = {
+                'action': self.replay_buffer['action'], # EE orientation
+                'agent_pos': self.replay_buffer['state'][...,:], # Joint position and EE position, '...,:' selects all dimensions of array for variable size array (different tasks have different state dimensions)
+                'point_cloud': self.replay_buffer['point_cloud'], # Colorless point cloud
+            }
+        else:
+            data = {
+                'action': self.replay_buffer['action'], # EE orientation
+                'agent_pos': self.replay_buffer['state'][...,:], # Joint position and EE position, '...,:' selects all dimensions of array for variable size array (different tasks have different state dimensions)
+            }
         normalizer = LinearNormalizer()
         normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
         # normalizer['point_cloud'] = SingleFieldLinearNormalizer.create_identity()
@@ -73,15 +85,24 @@ class HitlDataset(BaseDataset):
 
     def _sample_to_data(self, sample):
         agent_pos = sample['state'][:,].astype(np.float32) # (agent_posx2, block_posex3)
-        point_cloud = sample['point_cloud'][:,].astype(np.float32) # (T, 1024, 6)
+        if self.use_pointcloud:
+            point_cloud = sample['point_cloud'][:,].astype(np.float32) # (T, 1024, 6)
 
-        data = {
-            'obs': {
-                'point_cloud': point_cloud, # T, 1024, 6
-                'agent_pos': agent_pos, # T, D_pos
-            },
-            'action': sample['action'].astype(np.float32) # T, D_action
-        }
+        if self.use_pointcloud:
+            data = {
+                'obs': {
+                    'point_cloud': point_cloud, # T, 1024, 6
+                    'agent_pos': agent_pos, # T, D_pos
+                },
+                'action': sample['action'].astype(np.float32) # T, D_action
+            }
+        else:
+            data = {
+                'obs': {
+                    'agent_pos': agent_pos, # T, D_pos
+                },
+                'action': sample['action'].astype(np.float32) # T, D_action
+            }
         return data
     
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:

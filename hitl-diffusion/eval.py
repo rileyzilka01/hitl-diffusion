@@ -56,10 +56,15 @@ def main(cfg):
 
             data = msgpack.unpackb(message, object_hook=msgpack_numpy_decode, raw=False)
 
-            obs_dict = {
-                "point_cloud": torch.from_numpy(np.expand_dims(data['point_cloud'], axis=0)).cuda(non_blocking=True),
-                "agent_pos": torch.from_numpy(np.expand_dims(data['agent_pos'], axis=0)).cuda(non_blocking=True)
-            }
+            if cfg.policy.use_pointcloud:
+                obs_dict = {
+                    "point_cloud": torch.from_numpy(np.expand_dims(data['point_cloud'], axis=0)).cuda(non_blocking=True),
+                    "agent_pos": torch.from_numpy(np.expand_dims(data['agent_pos'], axis=0)).cuda(non_blocking=True)
+                }
+            else:
+                obs_dict = {
+                    "agent_pos": torch.from_numpy(np.expand_dims(data['agent_pos'], axis=0)).cuda(non_blocking=True)
+                }
 
             # Run inference
             start_time = time.time()

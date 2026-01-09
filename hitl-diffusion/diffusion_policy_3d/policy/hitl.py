@@ -40,10 +40,12 @@ class HITL(BasePolicy):
             use_pc_color=False,
             pointnet_type="pointnet",
             pointcloud_encoder_cfg=None,
+            use_pointcloud=True,
             # parameters passed to step
             **kwargs):
         super().__init__()
 
+        self.use_pointcloud = use_pointcloud
         self.condition_type = condition_type
         # parse shape_meta
         action_shape = shape_meta['action']['shape']
@@ -64,6 +66,7 @@ class HITL(BasePolicy):
             pointcloud_encoder_cfg=pointcloud_encoder_cfg,
             use_pc_color=use_pc_color,
             pointnet_type=pointnet_type,
+            use_pointcloud=self.use_pointcloud,
         )
 
         # create diffusion model
@@ -77,11 +80,11 @@ class HITL(BasePolicy):
             else:
                 global_cond_dim = obs_feature_dim * n_obs_steps
         
-
         self.use_pc_color = use_pc_color
         self.pointnet_type = pointnet_type
-        cprint(f"[DiffusionUnetHybridPointcloudPolicy] use_pc_color: {self.use_pc_color}", "yellow")
-        cprint(f"[DiffusionUnetHybridPointcloudPolicy] pointnet_type: {self.pointnet_type}", "yellow")
+        if self.use_pointcloud:
+            cprint(f"[DiffusionUnetHybridPointcloudPolicy] use_pc_color: {self.use_pc_color}", "yellow")
+            cprint(f"[DiffusionUnetHybridPointcloudPolicy] pointnet_type: {self.pointnet_type}", "yellow")
 
 
 
@@ -180,9 +183,10 @@ class HITL(BasePolicy):
         # normalize input
         nobs = self.normalizer.normalize(obs_dict)
         # this_n_point_cloud = nobs['imagin_robot'][..., :3] # only use coordinate
-        if not self.use_pc_color:
-            nobs['point_cloud'] = nobs['point_cloud'][..., :3]
-        this_n_point_cloud = nobs['point_cloud']
+        if self.use_pointcloud:
+            if not self.use_pc_color:
+                nobs['point_cloud'] = nobs['point_cloud'][..., :3]
+            this_n_point_cloud = nobs['point_cloud']
         
         
         value = next(iter(nobs.values()))
@@ -260,7 +264,7 @@ class HITL(BasePolicy):
         nobs = self.normalizer.normalize(batch['obs'])
         nactions = self.normalizer['action'].normalize(batch['action'])
 
-        if not self.use_pc_color:
+        if self.use_pointcloud and not self.use_pc_color:
             nobs['point_cloud'] = nobs['point_cloud'][..., :3]
         
         batch_size = nactions.shape[0]
@@ -286,9 +290,10 @@ class HITL(BasePolicy):
             else:
                 # reshape back to B, Do
                 global_cond = nobs_features.reshape(batch_size, -1)
-            # this_n_point_cloud = this_nobs['imagin_robot'].reshape(batch_size,-1, *this_nobs['imagin_robot'].shape[1:])
-            this_n_point_cloud = this_nobs['point_cloud'].reshape(batch_size,-1, *this_nobs['point_cloud'].shape[1:])
-            this_n_point_cloud = this_n_point_cloud[..., :3]
+            if self.use_pointcloud:
+                # this_n_point_cloud = this_nobs['imagin_robot'].reshape(batch_size,-1, *this_nobs['imagin_robot'].shape[1:])
+                this_n_point_cloud = this_nobs['point_cloud'].reshape(batch_size,-1, *this_nobs['point_cloud'].shape[1:])
+                this_n_point_cloud = this_n_point_cloud[..., :3]
         else:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, lambda x: x.reshape(-1, *x.shape[2:]))

@@ -68,6 +68,8 @@ policy:
     final_norm: layernorm # layernorm, none
     normal_channel: false
 
+  use_pointcloud: true # Use pointcloud in conditioning or not
+
 
 ema:
   _target_: diffusion_policy_3d.model.diffusion.ema_model.EMAModel
