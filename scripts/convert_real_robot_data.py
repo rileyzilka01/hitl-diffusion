@@ -9,6 +9,7 @@ from termcolor import cprint
 import time
 import sys
 import pickle
+from scipy.spatial.transform import Rotation as R
 
 def select_evenly_spaced(array, max_length=48):
     n = len(array)
@@ -27,6 +28,37 @@ def preproces_image(image):
     image = image.permute(1, 2, 0) # 4xHxW -> HxWx4
     image = image.cpu().numpy()
     return image
+
+def rot_x(theta):
+    c, s = np.cos(theta), np.sin(theta)
+    return np.array([
+        [1, 0, 0],
+        [0, c, -s],
+        [0, s,  c]
+    ])
+
+def rot_y(theta):
+    c, s = np.cos(theta), np.sin(theta)
+    return np.array([
+        [ c, 0, s],
+        [ 0, 1, 0],
+        [-s, 0, c]
+    ])
+
+def rot_z(theta):
+    c, s = np.cos(theta), np.sin(theta)
+    return np.array([
+        [c, -s, 0],
+        [s,  c, 0],
+        [0,  0, 1]
+    ])
+
+def euler_to_matrix(euler_xyz):
+    return R.from_euler('xyz', euler_xyz).as_matrix()
+
+def matrix_to_euler(Rm):
+    return R.from_matrix(Rm).as_euler('xyz')
+
 
 if len(sys.argv) < 3:
     print("Usage: python scripts/convert_real_robot_data.py <input_dataset_name> <output_dataset_name>")
@@ -52,12 +84,19 @@ shared = True
 demo_length = 1024
 num_prompts = 3
 
-# train_demo_count = 5 #how many demonstrations to use from total, just takes first x
-train_demo_count = len(demo_dirs)+1 #default
+train_demo_count = 1 #how many demonstrations to use from total, just takes first x
+# train_demo_count = len(demo_dirs)+1 #default
 
-use_pointcloud = False # use pointcloud in conditioning or not
+use_pointcloud = True # use pointcloud in conditioning or not
+center_point_cloud = True
+centroid_only = True
 
-centroid_only = False
+simulate_rotations = True
+simulation_count = 10
+simulate_x = False
+simulate_y = True
+simulate_z = False
+
 if shared:
     # SHARED
     use_gripper = False
@@ -89,100 +128,148 @@ os.makedirs(save_data_path, exist_ok=True)
 
 for demo_dir in demo_dirs[:train_demo_count]: 
     cprint('Processing {}'.format(demo_dir), 'green')
+    if not simulate_rotations:
+        simulation_count = 1
+        rstart = 0
+        rmax = 1
+        rstep = 1
+    else:
+        rstart = 0
+        rmax = 360
+        rstep = 360//simulation_count
+    for angle in range(rstart, rmax, rstep):
+        demo_timesteps = sorted([int(d) for d in os.listdir(demo_dir)])
+        demo_timesteps = select_evenly_spaced(demo_timesteps, max_length=demo_length)
 
-    demo_timesteps = sorted([int(d) for d in os.listdir(demo_dir)])
-    demo_timesteps = select_evenly_spaced(demo_timesteps, max_length=demo_length)
+        # For getting the difference instead of absolute orientation
+        prev_ee_orientation = None
+        prev_joint_pos = None
 
-    # For getting the difference instead of absolute orientation
-    prev_ee_orientation = None
-    prev_joint_pos = None
+        for step_idx in tqdm.tqdm(range(len(demo_timesteps))):
+            timestep_dir = os.path.join(demo_dir, str(demo_timesteps[step_idx]))
 
-    for step_idx in tqdm.tqdm(range(len(demo_timesteps))):
-        timestep_dir = os.path.join(demo_dir, str(demo_timesteps[step_idx]))
-
-        # obs_image = demo['image'][step_idx]
-        # obs_depth = demo['depth'][step_idx]
-        # obs_image = preproces_image(obs_image)
-        # obs_depth = preproces_image(np.expand_dims(obs_depth, axis=-1)).squeeze(-1)
-        
-        state_info = np.load(os.path.join(timestep_dir, 'low_dim.npy'), allow_pickle=True).item()
-        if use_gripper:
-            if shared:
-                # ABSOLUTE
-                robot_state = list(state_info['joints']['position'])[:8] + state_info['ee_position']
-                # ABSOLUTE
-            else:
-                # DIFF
-                if prev_joint_pos is None:
-                    robot_state = list(np.zeros(8))
-                    prev_joint_pos = list(state_info['joints']['position'])[:7]
+            # obs_image = demo['image'][step_idx]
+            # obs_depth = demo['depth'][step_idx]
+            # obs_image = preproces_image(obs_image)
+            # obs_depth = preproces_image(np.expand_dims(obs_depth, axis=-1)).squeeze(-1)
+            
+            state_info = np.load(os.path.join(timestep_dir, 'low_dim.npy'), allow_pickle=True).item()
+            if use_gripper:
+                if shared:
+                    # ABSOLUTE
+                    robot_state = list(state_info['joints']['position'])[:8] + state_info['ee_position']
+                    # ABSOLUTE
                 else:
-                    current = list(state_info['joints']['position'])[:7]
-                    robot_state = [current[i] - prev_joint_pos[i] for i in range(len(current))] + [0]
-                    prev_joint_pos = current
-                # DIFF
+                    # DIFF
+                    if prev_joint_pos is None:
+                        robot_state = list(np.zeros(8))
+                        prev_joint_pos = list(state_info['joints']['position'])[:7]
+                    else:
+                        current = list(state_info['joints']['position'])[:7]
+                        robot_state = [current[i] - prev_joint_pos[i] for i in range(len(current))] + [0]
+                        prev_joint_pos = current
+                    # DIFF
 
-            robot_state[7] = 1 if robot_state[7] > 0.3 else -1
-        else: # shared control
-            centroids = list(state_info['centroids'])
-            # print(f"CENTS: {[f'{abc: .4f}' for abc in centroids]}")
-            if len(centroids) < 9:
-                centroids += [0] * ((3*num_prompts)-len(centroids))
-            differences = []
-            for i in range(num_prompts):
-                for j in range(i+1, num_prompts):
-                    differences += [centroids[i*3] - centroids[j*3], centroids[(i*3)+1] - centroids[(j*3)+1], centroids[(i*3)+2] - centroids[(j*3)+2]]
+                robot_state[7] = 1 if robot_state[7] > 0.3 else -1
+            else: # shared control
+                centroids = list(state_info['centroids'])
+                # print(f"CENTS: {[f'{abc: .4f}' for abc in centroids]}")
+                if len(centroids) < 9:
+                    centroids += [0] * ((3*num_prompts)-len(centroids))
+                differences = []
+                for i in range(num_prompts):
+                    for j in range(i+1, num_prompts):
+                        differences += [centroids[i*3] - centroids[j*3], centroids[(i*3)+1] - centroids[(j*3)+1], centroids[(i*3)+2] - centroids[(j*3)+2]]
 
-            robot_state = list(state_info['joints']['position'])[:7] + state_info['ee_position'] + differences
+                # Rotate centroid differences if simulate enabled.
+                if simulate_rotations:
+                    if simulate_x:
+                        pass
 
-        if not joint_pos:
-            robot_state = robot_state[7:]
+                    if simulate_y:
+                        rotated = np.asarray(differences).reshape(-1, 3)@rot_y(angle).T
+                        differences = [diff for diff in rotated.reshape(-1)]
 
-        if use_pointcloud:
-            obs_pointcloud = np.load(os.path.join(timestep_dir, 'depth.npy'), allow_pickle=True)
+                    if simulate_z:
+                        pass
 
-        ee_orientation = state_info['ee_orientation']
+                robot_state = list(state_info['joints']['position'])[:7] + state_info['ee_position'] + differences
 
-        # ABSOLUTE
-        if not auto:
-            action = ee_orientation # for shared control
-        elif auto:
-            action = robot_state # for auto
-            robot_state = list(state_info['joints']['position'])[:7]
-        # ABSOLUTE
+            if not joint_pos:
+                robot_state = robot_state[7:]
 
-        # TESTING ONLY HAVING DIFFERENCES
-        if centroid_only:
-            robot_state = robot_state[-9:]
-            # print(f"ROBOS: {[f'{abc: .4f}' for abc in robot_state]}")
+            if use_pointcloud:
+                obs_pointcloud = np.load(os.path.join(timestep_dir, 'depth.npy'), allow_pickle=True)
 
-        # DIFF wasn't really useful because for shared controls diferences may be arbitrary, and if the human changes lots at first and not at goal nothing will happen
-        # if prev_ee_orientation == None:
-        #     action = [0, 0, 0]
-        # else:
-        #     # Consider angle wrapping
-        #     action = [(ee_orientation[i] - prev_ee_orientation[i] + 180) % 360 - 180 for i in range(len(ee_orientation))]
-        # prev_ee_orientation = ee_orientation
+                if center_point_cloud:
+                    centroid = obs_pointcloud.mean(axis=0)
+                    obs_pointcloud = obs_pointcloud - centroid
 
-        # # Convert to quaternion (x, y, z, w)
-        # euler = action
-        # r = R.from_euler('xyz', euler, degrees=True)
-        # action = r.as_quat()
-        # DIFF
+                # Rotate pointclouds here
+                if simulate_rotations:
+                    if simulate_x:
+                        pass
 
-        # Point cloud is processed during recording now
-        # obs_pointcloud = preprocess_point_cloud(obs_pointcloud, use_cuda=True)
+                    if simulate_y:
+                        obs_pointcloud = np.asarray(obs_pointcloud).reshape(-1, 3)@rot_y(angle).T
 
-        # img_arrays.append(obs_image)
-        action_arrays.append(action)
-        if use_pointcloud:
-            point_cloud_arrays.append(obs_pointcloud)
-        # depth_arrays.append(obs_depth)
-        state_arrays.append(robot_state)
+                    if simulate_z:
+                        pass
 
-        total_count += 1
-    
-    episode_ends_arrays.append(total_count)
+
+            ee_orientation = state_info['ee_orientation']
+            # if simulate_rotations:
+            #     if simulate_x:
+            #         pass
+
+            #     if simulate_y:
+            #         r = euler_to_matrix(ee_orientation)
+            #         r_rot = rot_z(-angle) @ r
+            #         ee_orientation = matrix_to_euler(r_rot)
+
+            #     if simulate_z:
+            #         pass
+
+            # ABSOLUTE
+            if not auto:
+                action = ee_orientation # for shared control
+            elif auto:
+                action = robot_state # for auto
+                robot_state = list(state_info['joints']['position'])[:7]
+            # ABSOLUTE
+
+            # TESTING ONLY HAVING DIFFERENCES
+            if centroid_only:
+                robot_state = robot_state[-9:]
+                # print(f"ROBOS: {[f'{abc: .4f}' for abc in robot_state]}")
+
+            # DIFF wasn't really useful because for shared controls diferences may be arbitrary, and if the human changes lots at first and not at goal nothing will happen
+            # if prev_ee_orientation == None:
+            #     action = [0, 0, 0]
+            # else:
+            #     # Consider angle wrapping
+            #     action = [(ee_orientation[i] - prev_ee_orientation[i] + 180) % 360 - 180 for i in range(len(ee_orientation))]
+            # prev_ee_orientation = ee_orientation
+
+            # # Convert to quaternion (x, y, z, w)
+            # euler = action
+            # r = R.from_euler('xyz', euler, degrees=True)
+            # action = r.as_quat()
+            # DIFF
+
+            # Point cloud is processed during recording now
+            # obs_pointcloud = preprocess_point_cloud(obs_pointcloud, use_cuda=True)
+
+            # img_arrays.append(obs_image)
+            action_arrays.append(action)
+            if use_pointcloud:
+                point_cloud_arrays.append(obs_pointcloud)
+            # depth_arrays.append(obs_depth)
+            state_arrays.append(robot_state)
+
+            total_count += 1
+        
+        episode_ends_arrays.append(total_count)
 
 if auto == True:
     action_arrays = [action_arrays[1:], action_arrays[0]]

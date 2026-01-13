@@ -291,7 +291,7 @@ def plot_sequence():
     vis.visualize_pointclouds(pcs, color=color)
 
 def plot_one():
-    pc_path = '/home/rzilka/png_vision/data/hitl_block/51/0/depth.npy'
+    pc_path = '/home/rzilka/png_vision/data/hitl_tennis_ball/0/0/depth.npy'
         
     vis = Visualizer()
 
