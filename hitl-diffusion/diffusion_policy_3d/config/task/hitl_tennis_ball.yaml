@@ -11,7 +11,7 @@ shape_meta: &shape_meta
       shape: [2048, 3]
       type: point_cloud
     agent_pos:
-      shape: [12] # size of the robot state array (3 for ee_position, 9 for central differences)
+      shape: [9] # size of the robot state array (9 for central differences)
       type: low_dimx
   action:
     # shape: [4] # size of the action array (4 for ee_orientation in qx, qy, qz, qw)
