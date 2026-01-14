@@ -91,7 +91,7 @@ use_pointcloud = True # use pointcloud in conditioning or not
 center_point_cloud = True
 centroid_only = True
 
-simulate_rotations = True
+simulate_rotations = False
 simulation_count = 10
 simulate_x = False
 simulate_y = True
