@@ -20,10 +20,12 @@ class HitlDataset(BaseDataset):
             max_train_episodes=None,
             task_name=None,
             use_pointcloud=True,
+            simulate_variations=True
             ):
         super().__init__()
         self.use_pointcloud = use_pointcloud
         self.task_name = task_name
+        self.simulate_variations = simulate_variations
         if self.use_pointcloud:
             self.replay_buffer = ReplayBuffer.copy_from_path(
             zarr_path, keys=['state', 'action', 'point_cloud'])
@@ -85,10 +87,23 @@ class HitlDataset(BaseDataset):
 
     def _sample_to_data(self, sample):
         agent_pos = sample['state'][:,].astype(np.float32) # (agent_posx2, block_posex3)
-        if self.use_pointcloud:
-            point_cloud = sample['point_cloud'][:,].astype(np.float32) # (T, 1024, 6)
+        
+        if self.simulate_variations:
+            rx = np.random.uniform(0, 2*np.pi)
+            ry = np.random.uniform(0, 2*np.pi)
+            rz = np.random.uniform(0, 2*np.pi)
+
+            R = self.rotation_matrix(rx, ry, rz).T
+
+            temp = np.asarray(agent_pos).reshape(-1, 3) @ R
+            agent_pos = temp.reshape(1, 9).astype(np.float32)
 
         if self.use_pointcloud:
+            point_cloud = sample['point_cloud'][:,].astype(np.float32) # (T, 1024, 6)
+            
+            if self.simulate_variations:
+                point_cloud = point_cloud @ R
+            
             data = {
                 'obs': {
                     'point_cloud': point_cloud, # T, 1024, 6
@@ -111,3 +126,26 @@ class HitlDataset(BaseDataset):
         torch_data = dict_apply(data, torch.from_numpy)
         return torch_data
 
+    def rotation_matrix(self, rx, ry, rz):
+        # Rotation matrices about each axis
+        Rx = np.array([
+            [1, 0, 0],
+            [0, np.cos(rx), -np.sin(rx)],
+            [0, np.sin(rx),  np.cos(rx)]
+        ])
+
+        Ry = np.array([
+            [ np.cos(ry), 0, np.sin(ry)],
+            [0,           1, 0],
+            [-np.sin(ry), 0, np.cos(ry)]
+        ])
+
+        Rz = np.array([
+            [np.cos(rz), -np.sin(rz), 0],
+            [np.sin(rz),  np.cos(rz), 0],
+            [0,           0,          1]
+        ])
+
+        # Combined rotation (Z → Y → X)
+        R = Rz @ Ry @ Rx
+        return R
