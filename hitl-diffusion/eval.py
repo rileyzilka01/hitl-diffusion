@@ -38,56 +38,60 @@ OmegaConf.register_new_resolver("eval", eval, replace=True)
 )
 def main(cfg):
     workspace = TrainHITLWorkspace(cfg)
-    workspace.eval(server=cfg.server)
-
+    workspace.eval(server=True)
     if cfg.server:
         context = zmq.Context()
         socket = context.socket(zmq.REP)
         socket.bind("tcp://192.168.1.161:5555")  # Listen on all interfaces
+    else:
+        context = zmq.Context()
+        socket = context.socket(zmq.REP)
+        socket.bind("tcp://*:5555")  # Listen on all interfaces
 
-        print("Server up!")
+    print("Server up!")
 
-        while True:
-            message = socket.recv()
-            
-            if message.startswith(b'\x81\xa4ping'):  # msgpack-encoded dict with 'ping'
-                socket.send(msgpack.packb({"pong": True}, use_bin_type=True))
-                continue
+    while True:
+        message = socket.recv()
+        
+        if message.startswith(b'\x81\xa4ping'):  # msgpack-encoded dict with 'ping'
+            socket.send(msgpack.packb({"pong": True}, use_bin_type=True))
+            continue
 
-            data = msgpack.unpackb(message, object_hook=msgpack_numpy_decode, raw=False)
+        data = msgpack.unpackb(message, object_hook=msgpack_numpy_decode, raw=False)
 
-            if cfg.policy.use_pointcloud:
-                obs_dict = {
-                    "point_cloud": torch.from_numpy(np.expand_dims(data['point_cloud'], axis=0)).cuda(non_blocking=True),
-                    "agent_pos": torch.from_numpy(np.expand_dims(data['agent_pos'], axis=0)).cuda(non_blocking=True)
-                }
-            else:
-                obs_dict = {
-                    "agent_pos": torch.from_numpy(np.expand_dims(data['agent_pos'], axis=0)).cuda(non_blocking=True)
-                }
-
-            # Run inference
-            start_time = time.time()
-            with torch.no_grad():
-                result = workspace.model_inference(server_call=True, data=obs_dict)
-            inference_time = time.time() - start_time
-            print(f"Inference took {inference_time:.6f} seconds")
-
-            # ABSOLUTE
-            euler_deg = result['action_pred'].cpu().numpy()
-            # ABSOLUTE
-
-            # DIFF
-            # # Convert quaternions to Euler in one shot (vectorized)
-            # action_quats = result['action_pred'].cpu().numpy()  # shape: (1, horizon, 4)
-            # euler_deg = R.from_quat(action_quats[0]).as_euler('xyz', degrees=True)  # shape: (horizon, 3)
-            # DIFF
-
-            # Send back
-            response = {
-                "action": euler_deg.tolist()
+        if cfg.policy.use_pointcloud:
+            obs_dict = {
+                "point_cloud": torch.from_numpy(np.expand_dims(data['point_cloud'], axis=0)).cuda(non_blocking=True),
+                "agent_pos": torch.from_numpy(np.expand_dims(data['agent_pos'], axis=0)).cuda(non_blocking=True)
             }
-            socket.send(msgpack.packb(response, default=msgpack_numpy_encode, use_bin_type=True))
+        else:
+            obs_dict = {
+                "agent_pos": torch.from_numpy(np.expand_dims(data['agent_pos'], axis=0)).cuda(non_blocking=True)
+            }
+
+        # Run inference
+        start_time = time.time()
+        with torch.no_grad():
+            result = workspace.model_inference(server_call=True, data=obs_dict)
+        inference_time = time.time() - start_time
+        print(f"Inference took {inference_time:.6f} seconds")
+
+        # ABSOLUTE
+        euler_deg = result['action_pred'].cpu().numpy()
+        # ABSOLUTE
+
+        # DIFF
+        # # Convert quaternions to Euler in one shot (vectorized)
+        # action_quats = result['action_pred'].cpu().numpy()  # shape: (1, horizon, 4)
+        # euler_deg = R.from_quat(action_quats[0]).as_euler('xyz', degrees=True)  # shape: (horizon, 3)
+        # DIFF
+
+        # Send back
+        response = {
+            "action": euler_deg.tolist()
+        }
+        socket.send(msgpack.packb(response, default=msgpack_numpy_encode, use_bin_type=True))
+
 
 if __name__ == "__main__":
     main()
