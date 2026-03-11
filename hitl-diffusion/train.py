@@ -42,7 +42,7 @@ class TrainHITLWorkspace:
         self.cfg = cfg
         self._output_dir = output_dir
         self._saving_thread = None
-        
+
         # set seed
         seed = cfg.training.seed
         torch.manual_seed(seed)
