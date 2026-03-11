@@ -63,9 +63,15 @@ def matrix_to_euler(Rm):
 if len(sys.argv) < 3:
     print("Usage: python scripts/convert_real_robot_data.py <input_dataset_name> <output_dataset_name>")
     sys.exit(1)
-
-expert_data_path = f'/home/rzilka/png_vision/data/{sys.argv[1]}'
-save_data_path = f'/home/rzilka/hitl-diffusion/hitl-diffusion/data/{sys.argv[2]}.zarr'
+if len(sys.argv) == 4:
+    print("Usage: python scripts/convert_real_robot_data.py <input_dataset_name> <output_dataset_name> <input_path> <output_path>")
+    sys.exit(1)
+if len(sys.argv) == 5:
+    expert_data_path = f'{sys.argv[3]}/{sys.argv[1]}'
+    save_data_path = f'{sys.argv[4]}/{sys.argv[2]}.zarr'
+else:
+    expert_data_path = f'/home/rzilka/png_vision/data/{sys.argv[1]}'
+    save_data_path = f'/home/rzilka/hitl-diffusion/hitl-diffusion/data/{sys.argv[2]}.zarr'
 dirs = os.listdir(expert_data_path)
 dirs = sorted([int(d) for d in dirs])
 
@@ -117,7 +123,7 @@ if os.path.exists(save_data_path):
     cprint('Data already exists at {}'.format(save_data_path), 'red')
     cprint("If you want to overwrite, delete the existing directory first.", "red")
     cprint("Do you want to overwrite? (y/n)", "red")
-    user_input = 'y'
+    user_input = input("")
     if user_input == 'y':
         cprint('Overwriting {}'.format(save_data_path), 'red')
         os.system('rm -rf {}'.format(save_data_path))
