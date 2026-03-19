@@ -9,6 +9,7 @@ import torch
 import pytorch3d.ops as torch3d_ops
 import math
 import open3d as o3d
+import sys
     
 class Visualizer:
     def __init__(self):
@@ -290,8 +291,9 @@ def plot_sequence():
     color:tuple=None
     vis.visualize_pointclouds(pcs, color=color)
 
-def plot_one():
-    pc_path = '/home/rzilka/png_vision/data/hitl_method/0/0/depth.npy'
+def plot_one(dataset):
+    print(os.getcwd())
+    pc_path = f'{os.getcwd()}/kinova-diffusion/data/{dataset}/0/0/depth.npy'
         
     vis = Visualizer()
 
@@ -417,5 +419,11 @@ def get_homogenous_matrix():
 
 
 if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python record.py <dataset_name>")
+        sys.exit(1)
+
+    dataset = sys.argv[1]
+
     # plot_sequence()
-    plot_one()
+    plot_one(dataset)
