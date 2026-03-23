@@ -29,36 +29,19 @@ def preproces_image(image):
     image = image.cpu().numpy()
     return image
 
-def rot_x(theta):
-    c, s = np.cos(theta), np.sin(theta)
-    return np.array([
-        [1, 0, 0],
-        [0, c, -s],
-        [0, s,  c]
-    ])
-
-def rot_y(theta):
-    c, s = np.cos(theta), np.sin(theta)
-    return np.array([
-        [ c, 0, s],
-        [ 0, 1, 0],
-        [-s, 0, c]
-    ])
-
-def rot_z(theta):
-    c, s = np.cos(theta), np.sin(theta)
-    return np.array([
-        [c, -s, 0],
-        [s,  c, 0],
-        [0,  0, 1]
-    ])
-
 def euler_to_matrix(euler_xyz):
     return R.from_euler('xyz', euler_xyz).as_matrix()
 
 def matrix_to_euler(Rm):
     return R.from_matrix(Rm).as_euler('xyz')
 
+def unit_vector_diff(a, b, eps=1e-8):
+    # Normalize to unit vectors
+    a_unit = a / (np.linalg.norm(a) + eps)
+    b_unit = b / (np.linalg.norm(b) + eps)
+    
+    # Return the L2 distance between the tips of the vectors
+    return np.linalg.norm(a_unit - b_unit, axis=-1)
 
 if len(sys.argv) < 3:
     print("Usage: python scripts/convert_real_robot_data.py <input_dataset_name> <output_dataset_name>")
@@ -88,7 +71,7 @@ episode_ends_arrays = []
 
 shared = True
 demo_length = 1024
-num_prompts = 3
+num_prompts = 4
 
 train_demo_count = 1 #how many demonstrations to use from total, just takes first x
 # train_demo_count = len(demo_dirs)+1 #default
@@ -96,12 +79,7 @@ train_demo_count = 1 #how many demonstrations to use from total, just takes firs
 use_pointcloud = True # use pointcloud in conditioning or not
 center_point_cloud = True
 centroid_only = True
-
-simulate_rotations = False
-simulation_count = 10
-simulate_x = False
-simulate_y = True
-simulate_z = False
+use_norm_diffs = True
 
 if shared:
     # SHARED
@@ -134,15 +112,10 @@ os.makedirs(save_data_path, exist_ok=True)
 
 for demo_dir in demo_dirs[:train_demo_count]: 
     cprint('Processing {}'.format(demo_dir), 'green')
-    if not simulate_rotations:
-        simulation_count = 1
-        rstart = 0
-        rmax = 1
-        rstep = 1
-    else:
-        rstart = 0
-        rmax = 360
-        rstep = 360//simulation_count
+    simulation_count = 1
+    rstart = 0
+    rmax = 1
+    rstep = 1
     for angle in range(rstart, rmax, rstep):
         demo_timesteps = sorted([int(d) for d in os.listdir(demo_dir)])
         demo_timesteps = select_evenly_spaced(demo_timesteps, max_length=demo_length)
@@ -183,23 +156,34 @@ for demo_dir in demo_dirs[:train_demo_count]:
                 if len(centroids) < 9:
                     centroids += [0] * ((3*num_prompts)-len(centroids))
                 differences = []
-                for i in range(num_prompts):
+                for i in range(1, num_prompts): # skip the first centroid since its the red line and we dont use it for differencess
                     for j in range(i+1, num_prompts):
                         differences += [centroids[i*3] - centroids[j*3], centroids[(i*3)+1] - centroids[(j*3)+1], centroids[(i*3)+2] - centroids[(j*3)+2]]
 
-                # Rotate centroid differences if simulate enabled.
-                if simulate_rotations:
-                    if simulate_x:
-                        pass
-
-                    if simulate_y:
-                        rotated = np.asarray(differences).reshape(-1, 3)@rot_y(angle).T
-                        differences = [diff for diff in rotated.reshape(-1)]
-
-                    if simulate_z:
-                        pass
-
                 robot_state = list(state_info['joints']['position'])[:7] + state_info['ee_position'] + differences
+
+            if use_norm_diffs:
+                ee_vec = np.array(centroids[:3]) - np.array(centroids[3:6])
+                mag = np.linalg.norm(ee_vec)
+                if mag > 1e-6:
+                    ee_unit_vec = ee_vec / mag
+                else:
+                    ee_unit_vec = ee_vec
+                
+                norm_diffs = []
+                for i in range(num_prompts-2): # only get the end effector -> object differences not interobject differences
+                    raw_target_dist = np.array(differences[i*3:(i+1)*3])
+
+                    mag = np.linalg.norm(raw_target_dist)
+                    if mag > 1e-6:
+                        target_vec = raw_target_dist / mag
+                    else:
+                        target_vec = raw_target_dist
+                
+                    diff = unit_vector_diff(ee_unit_vec, target_vec)
+                    norm_diffs.append(diff)
+
+                robot_state += norm_diffs
 
             if not joint_pos:
                 robot_state = robot_state[7:]
@@ -211,30 +195,7 @@ for demo_dir in demo_dirs[:train_demo_count]:
                     centroid = obs_pointcloud.mean(axis=0)
                     obs_pointcloud = obs_pointcloud - centroid
 
-                # Rotate pointclouds here
-                if simulate_rotations:
-                    if simulate_x:
-                        pass
-
-                    if simulate_y:
-                        obs_pointcloud = np.asarray(obs_pointcloud).reshape(-1, 3)@rot_y(angle).T
-
-                    if simulate_z:
-                        pass
-
-
             ee_orientation = state_info['ee_orientation']
-            # if simulate_rotations:
-            #     if simulate_x:
-            #         pass
-
-            #     if simulate_y:
-            #         r = euler_to_matrix(ee_orientation)
-            #         r_rot = rot_z(-angle) @ r
-            #         ee_orientation = matrix_to_euler(r_rot)
-
-            #     if simulate_z:
-            #         pass
 
             # ABSOLUTE
             if not auto:
@@ -245,8 +206,10 @@ for demo_dir in demo_dirs[:train_demo_count]:
             # ABSOLUTE
 
             # TESTING ONLY HAVING DIFFERENCES
-            if centroid_only:
-                robot_state = robot_state[-9:]
+            if centroid_only and use_norm_diffs:
+                robot_state = robot_state[-(3*(num_prompts-1)) - (num_prompts-2):]
+            elif centroid_only:
+                robot_state = robot_state[-(3*(num_prompts-1)):]
                 # print(f"ROBOS: {[f'{abc: .4f}' for abc in robot_state]}")
 
             # DIFF wasn't really useful because for shared controls diferences may be arbitrary, and if the human changes lots at first and not at goal nothing will happen

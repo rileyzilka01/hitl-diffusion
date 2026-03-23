@@ -20,12 +20,14 @@ class HitlDataset(BaseDataset):
             max_train_episodes=None,
             task_name=None,
             use_pointcloud=True,
-            simulate_variations=True
+            simulate_variations=True,
+            num_prompts=3, #only the number of prompts that we measure differences with
             ):
         super().__init__()
         self.use_pointcloud = use_pointcloud
         self.task_name = task_name
         self.simulate_variations = simulate_variations
+        self.num_prompts=num_prompts
         if self.use_pointcloud:
             self.replay_buffer = ReplayBuffer.copy_from_path(
             zarr_path, keys=['state', 'action', 'point_cloud'])
@@ -95,8 +97,14 @@ class HitlDataset(BaseDataset):
 
             R = self.rotation_matrix(rx, ry, rz).T
 
-            temp = np.asarray(agent_pos).reshape(-1, 3) @ R
-            agent_pos = temp.reshape(1, 9).astype(np.float32)
+            centroid_diffrences = agent_pos[0][:3*self.num_prompts]
+            diffs = agent_pos[0][3*self.num_prompts:]
+
+            temp = np.asarray(centroid_diffrences).reshape(-1, 3) @ R
+            rotated_centroid_diffs = temp.reshape(1, 9).astype(np.float32)
+
+            combined = np.concatenate([rotated_centroid_diffs.flatten(), diffs])
+            agent_pos = combined.reshape(1, -1).astype(np.float32)
 
         if self.use_pointcloud:
             point_cloud = sample['point_cloud'][:,].astype(np.float32) # (T, 1024, 6)
