@@ -175,7 +175,7 @@ for demo_dir in demo_dirs[:train_demo_count]:
                 
                 for i in range(num_prompts-2): # only get the end effector -> object differences not interobject differences
                     raw_target_dist = np.array(differences[i*3:(i+1)*3])
-                    target_vec = normalize(raw_target_dist)=
+                    target_vec = normalize(raw_target_dist)
                 
                     diff = unit_vector_diff(ee_unit_vec, target_vec)
                     norm_diffs.append(diff)
