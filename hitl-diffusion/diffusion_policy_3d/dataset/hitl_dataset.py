@@ -19,21 +19,19 @@ class HitlDataset(BaseDataset):
             val_ratio=0.0,
             max_train_episodes=None,
             task_name=None,
-            use_pointcloud=True,
             simulate_variations=True,
             num_prompts=3, #only the number of prompts that we measure differences with
+            model_type="hitl_hgd",
             ):
         super().__init__()
-        self.use_pointcloud = use_pointcloud
         self.task_name = task_name
         self.simulate_variations = simulate_variations
         self.num_prompts=num_prompts
-        if self.use_pointcloud:
-            self.replay_buffer = ReplayBuffer.copy_from_path(
-            zarr_path, keys=['state', 'action', 'point_cloud'])
-        else:
-            self.replay_buffer = ReplayBuffer.copy_from_path(
-            zarr_path, keys=['state', 'action'])
+        self.model_type = model_type
+
+        self.replay_buffer = ReplayBuffer.copy_from_path(
+        zarr_path, keys=['state', 'action', 'point_cloud'])
+
         val_mask = get_val_mask(
             n_episodes=self.replay_buffer.n_episodes, 
             val_ratio=val_ratio,
@@ -68,17 +66,12 @@ class HitlDataset(BaseDataset):
         return val_set
 
     def get_normalizer(self, mode='limits', **kwargs):
-        if self.use_pointcloud:
-            data = {
-                'action': self.replay_buffer['action'], # EE orientation
-                'agent_pos': self.replay_buffer['state'][...,:], # Joint position and EE position, '...,:' selects all dimensions of array for variable size array (different tasks have different state dimensions)
-                'point_cloud': self.replay_buffer['point_cloud'], # Colorless point cloud
-            }
-        else:
-            data = {
-                'action': self.replay_buffer['action'], # EE orientation
-                'agent_pos': self.replay_buffer['state'][...,:], # Joint position and EE position, '...,:' selects all dimensions of array for variable size array (different tasks have different state dimensions)
-            }
+        data = {
+            'action': self.replay_buffer['action'], # EE orientation
+            'agent_pos': self.replay_buffer['state'][...,:], # Joint position and EE position, '...,:' selects all dimensions of array for variable size array (different tasks have different state dimensions)
+            'point_cloud': self.replay_buffer['point_cloud'], # Colorless point cloud
+        }
+        
         normalizer = LinearNormalizer()
         normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
         # normalizer['point_cloud'] = SingleFieldLinearNormalizer.create_identity()
@@ -89,43 +82,38 @@ class HitlDataset(BaseDataset):
 
     def _sample_to_data(self, sample):
         agent_pos = sample['state'][:,].astype(np.float32) # (agent_posx2, block_posex3)
+        if self.model_type == "hitl_hgd":
+            if self.simulate_variations:
+                rx = np.random.uniform(0, 2*np.pi)
+                ry = np.random.uniform(0, 2*np.pi)
+                rz = np.random.uniform(0, 2*np.pi)
+
+                R = self.rotation_matrix(rx, ry, rz).T
+
+                centroid_diffrences = agent_pos[0][:3*self.num_prompts]
+                diffs = agent_pos[0][3*self.num_prompts:]
+
+                temp = np.asarray(centroid_diffrences).reshape(-1, 3) @ R
+                rotated_centroid_diffs = temp.reshape(1, 9).astype(np.float32)
+
+                combined = np.concatenate([rotated_centroid_diffs.flatten(), diffs])
+                agent_pos = combined.reshape(1, -1).astype(np.float32)
+
         
-        if self.simulate_variations:
-            rx = np.random.uniform(0, 2*np.pi)
-            ry = np.random.uniform(0, 2*np.pi)
-            rz = np.random.uniform(0, 2*np.pi)
-
-            R = self.rotation_matrix(rx, ry, rz).T
-
-            centroid_diffrences = agent_pos[0][:3*self.num_prompts]
-            diffs = agent_pos[0][3*self.num_prompts:]
-
-            temp = np.asarray(centroid_diffrences).reshape(-1, 3) @ R
-            rotated_centroid_diffs = temp.reshape(1, 9).astype(np.float32)
-
-            combined = np.concatenate([rotated_centroid_diffs.flatten(), diffs])
-            agent_pos = combined.reshape(1, -1).astype(np.float32)
-
-        if self.use_pointcloud:
-            point_cloud = sample['point_cloud'][:,].astype(np.float32) # (T, 1024, 6)
-            
+        point_cloud = sample['point_cloud'][:,].astype(np.float32) # (T, 1024, 6)
+        
+        if self.model_type == "hitl_hgd":
             if self.simulate_variations:
                 point_cloud = point_cloud @ R
-            
-            data = {
-                'obs': {
-                    'point_cloud': point_cloud, # T, 1024, 6
-                    'agent_pos': agent_pos, # T, D_pos
-                },
-                'action': sample['action'].astype(np.float32) # T, D_action
-            }
-        else:
-            data = {
-                'obs': {
-                    'agent_pos': agent_pos, # T, D_pos
-                },
-                'action': sample['action'].astype(np.float32) # T, D_action
-            }
+        
+        data = {
+            'obs': {
+                'point_cloud': point_cloud, # T, 1024, 6
+                'agent_pos': agent_pos, # T, D_pos
+            },
+            'action': sample['action'].astype(np.float32) # T, D_action
+        }
+
         return data
     
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
