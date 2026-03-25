@@ -43,18 +43,33 @@ def unit_vector_diff(a, b, eps=1e-8):
     # Return the L2 distance between the tips of the vectors
     return np.linalg.norm(a_unit - b_unit, axis=-1)
 
-if len(sys.argv) < 3:
-    print("Usage: python scripts/convert_real_robot_data.py <input_dataset_name> <output_dataset_name>")
-    sys.exit(1)
-if len(sys.argv) == 4:
-    print("Usage: python scripts/convert_real_robot_data.py <input_dataset_name> <output_dataset_name> <input_path> <output_path>")
+def normalize(a, eps=1e-6):
+    mag = np.linalg.norm(a)
+    if mag > eps:
+        a_norm = a / mag
+    else:
+        a_norm = a
+
+    return a_norm
+
+if len(sys.argv) < 4:
+    print("Usage: python scripts/convert_real_robot_data.py <model> <input_dataset_name> <output_dataset_name>")
     sys.exit(1)
 if len(sys.argv) == 5:
-    expert_data_path = f'{sys.argv[3]}/{sys.argv[1]}'
-    save_data_path = f'{sys.argv[4]}/{sys.argv[2]}.zarr'
+    print("Usage: python scripts/convert_real_robot_data.py <model> <input_dataset_name> <output_dataset_name> <input_path> <output_path>")
+    sys.exit(1)
+if len(sys.argv) == 6:
+    expert_data_path = f'{sys.argv[4]}/{sys.argv[2]}'
+    save_data_path = f'{sys.argv[5]}/{sys.argv[3]}.zarr'
 else:
-    expert_data_path = f'/home/rzilka/png_vision/data/{sys.argv[1]}'
-    save_data_path = f'/home/rzilka/hitl-diffusion/hitl-diffusion/data/{sys.argv[2]}.zarr'
+    expert_data_path = f'/home/rzilka/png_vision/data/{sys.argv[2]}'
+    save_data_path = f'/home/rzilka/hitl-diffusion/hitl-diffusion/data/{sys.argv[3]}.zarr'
+
+model = sys.argv[1]
+if model not in ["hitl_d", "hitl_hgd"]:
+    print("Model non existent usage: <hitl_d, hitl_hgd>")
+    sys.exit(1)
+
 dirs = os.listdir(expert_data_path)
 dirs = sorted([int(d) for d in dirs])
 
@@ -70,7 +85,6 @@ action_arrays = []
 episode_ends_arrays = []
 
 shared = True
-demo_length = 1024
 num_prompts = 4
 
 train_demo_count = 1 #how many demonstrations to use from total, just takes first x
@@ -78,8 +92,17 @@ train_demo_count = 1 #how many demonstrations to use from total, just takes firs
 
 use_pointcloud = True # use pointcloud in conditioning or not
 center_point_cloud = True
-centroid_only = True
-use_norm_diffs = True
+
+if model == "hitl_hgd":
+    use_centroids = True
+    use_norm_diffs = True
+    use_ee_position = False
+    demo_length = 1024
+else:
+    use_centroids = False
+    use_norm_diffs = False
+    use_ee_position = True
+    demo_length = 256
 
 if shared:
     # SHARED
@@ -133,101 +156,63 @@ for demo_dir in demo_dirs[:train_demo_count]:
             # obs_depth = preproces_image(np.expand_dims(obs_depth, axis=-1)).squeeze(-1)
             
             state_info = np.load(os.path.join(timestep_dir, 'low_dim.npy'), allow_pickle=True).item()
-            if use_gripper:
-                if shared:
-                    # ABSOLUTE
-                    robot_state = list(state_info['joints']['position'])[:8] + state_info['ee_position']
-                    # ABSOLUTE
-                else:
-                    # DIFF
-                    if prev_joint_pos is None:
-                        robot_state = list(np.zeros(8))
-                        prev_joint_pos = list(state_info['joints']['position'])[:7]
-                    else:
-                        current = list(state_info['joints']['position'])[:7]
-                        robot_state = [current[i] - prev_joint_pos[i] for i in range(len(current))] + [0]
-                        prev_joint_pos = current
-                    # DIFF
 
-                robot_state[7] = 1 if robot_state[7] > 0.3 else -1
-            else: # shared control
+            differences = []
+            if use_centroids:
                 centroids = list(state_info['centroids'])
-                # print(f"CENTS: {[f'{abc: .4f}' for abc in centroids]}")
+
                 if len(centroids) < 9:
                     centroids += [0] * ((3*num_prompts)-len(centroids))
-                differences = []
+
                 for i in range(1, num_prompts): # skip the first centroid since its the red line and we dont use it for differencess
                     for j in range(i+1, num_prompts):
                         differences += [centroids[i*3] - centroids[j*3], centroids[(i*3)+1] - centroids[(j*3)+1], centroids[(i*3)+2] - centroids[(j*3)+2]]
 
-                robot_state = list(state_info['joints']['position'])[:7] + state_info['ee_position'] + differences
-
+            norm_diffs = []
             if use_norm_diffs:
                 ee_vec = np.array(centroids[:3]) - np.array(centroids[3:6])
-                mag = np.linalg.norm(ee_vec)
-                if mag > 1e-6:
-                    ee_unit_vec = ee_vec / mag
-                else:
-                    ee_unit_vec = ee_vec
+                ee_unit_vec = normalize(ee_vec)
                 
-                norm_diffs = []
                 for i in range(num_prompts-2): # only get the end effector -> object differences not interobject differences
                     raw_target_dist = np.array(differences[i*3:(i+1)*3])
-
-                    mag = np.linalg.norm(raw_target_dist)
-                    if mag > 1e-6:
-                        target_vec = raw_target_dist / mag
-                    else:
-                        target_vec = raw_target_dist
+                    target_vec = normalize(raw_target_dist)=
                 
                     diff = unit_vector_diff(ee_unit_vec, target_vec)
                     norm_diffs.append(diff)
 
+            # GET ROBOT STATE
+            robot_state = []
+            if joint_pos:
+                robot_state += list(state_info['joints']['position'])[:7]
+
+            if use_gripper:
+                gripper_state = list(state_info['joints']['position'])[7]
+                gripper_state = 1 if gripper_state > 0.3 else -1
+                robot_state += [gripper_state]
+
+            if use_ee_position:
+                robot_state += state_info['ee_position']
+
+            if use_centroids:
+                robot_state += differences
+
+            if use_norm_diffs:
                 robot_state += norm_diffs
+            # GET ROBOT STATE
 
-            if not joint_pos:
-                robot_state = robot_state[7:]
-
+            # POINTCLOUD
             if use_pointcloud:
                 obs_pointcloud = np.load(os.path.join(timestep_dir, 'depth.npy'), allow_pickle=True)
 
                 if center_point_cloud:
                     centroid = obs_pointcloud.mean(axis=0)
                     obs_pointcloud = obs_pointcloud - centroid
+            # POINTCLOUD
 
+            # ROBOT ACTION
             ee_orientation = state_info['ee_orientation']
-
-            # ABSOLUTE
-            if not auto:
-                action = ee_orientation # for shared control
-            elif auto:
-                action = robot_state # for auto
-                robot_state = list(state_info['joints']['position'])[:7]
-            # ABSOLUTE
-
-            # TESTING ONLY HAVING DIFFERENCES
-            if centroid_only and use_norm_diffs:
-                robot_state = robot_state[-(3*(num_prompts-1)) - (num_prompts-2):]
-            elif centroid_only:
-                robot_state = robot_state[-(3*(num_prompts-1)):]
-                # print(f"ROBOS: {[f'{abc: .4f}' for abc in robot_state]}")
-
-            # DIFF wasn't really useful because for shared controls diferences may be arbitrary, and if the human changes lots at first and not at goal nothing will happen
-            # if prev_ee_orientation == None:
-            #     action = [0, 0, 0]
-            # else:
-            #     # Consider angle wrapping
-            #     action = [(ee_orientation[i] - prev_ee_orientation[i] + 180) % 360 - 180 for i in range(len(ee_orientation))]
-            # prev_ee_orientation = ee_orientation
-
-            # # Convert to quaternion (x, y, z, w)
-            # euler = action
-            # r = R.from_euler('xyz', euler, degrees=True)
-            # action = r.as_quat()
-            # DIFF
-
-            # Point cloud is processed during recording now
-            # obs_pointcloud = preprocess_point_cloud(obs_pointcloud, use_cuda=True)
+            action = ee_orientation # for shared control
+            # ROBOT ACTION
 
             # img_arrays.append(obs_image)
             action_arrays.append(action)
