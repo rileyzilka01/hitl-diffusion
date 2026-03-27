@@ -22,7 +22,7 @@ class HitlDataset(BaseDataset):
             simulate_variations=True,
             num_prompts=3, #only the number of prompts that we measure differences with
             model_type="hitl_hgd",
-            use_pointcloud=False,
+            use_pointcloud=True,
             ):
         super().__init__()
         self.task_name = task_name
