@@ -40,7 +40,7 @@ class HITL(BasePolicy):
             use_pc_color=False,
             pointnet_type="pointnet",
             pointcloud_encoder_cfg=None,
-            use_pointcloud=True,
+            use_pointcloud=False,
             # parameters passed to step
             **kwargs):
         super().__init__()

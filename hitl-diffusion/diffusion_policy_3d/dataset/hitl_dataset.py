@@ -22,15 +22,19 @@ class HitlDataset(BaseDataset):
             simulate_variations=True,
             num_prompts=3, #only the number of prompts that we measure differences with
             model_type="hitl_hgd",
+            use_pointcloud=False,
             ):
         super().__init__()
         self.task_name = task_name
         self.simulate_variations = simulate_variations
         self.num_prompts=num_prompts
         self.model_type = model_type
+        self.use_pointcloud = use_pointcloud
 
-        self.replay_buffer = ReplayBuffer.copy_from_path(
-        zarr_path, keys=['state', 'action', 'point_cloud'])
+        if self.use_pointcloud:
+            self.replay_buffer = ReplayBuffer.copy_from_path(zarr_path, keys=['state', 'action', 'point_cloud'])
+        else:
+            self.replay_buffer = ReplayBuffer.copy_from_path(zarr_path, keys=['state', 'action'])
 
         val_mask = get_val_mask(
             n_episodes=self.replay_buffer.n_episodes, 
@@ -66,15 +70,21 @@ class HitlDataset(BaseDataset):
         return val_set
 
     def get_normalizer(self, mode='limits', **kwargs):
-        data = {
-            'action': self.replay_buffer['action'], # EE orientation
-            'agent_pos': self.replay_buffer['state'][...,:], # Joint position and EE position, '...,:' selects all dimensions of array for variable size array (different tasks have different state dimensions)
-            'point_cloud': self.replay_buffer['point_cloud'], # Colorless point cloud
-        }
-        
+        if self.use_pointcloud:
+            data = {
+                'action': self.replay_buffer['action'], # EE orientation
+                'agent_pos': self.replay_buffer['state'][...,:], # Joint position and EE position, '...,:' selects all dimensions of array for variable size array (different tasks have different state dimensions)
+                'point_cloud': self.replay_buffer['point_cloud'], # Colorless point cloud
+            }
+        else:
+            data = {
+                'action': self.replay_buffer['action'], # EE orientation
+                'agent_pos': self.replay_buffer['state'][...,:], # Joint position and EE position, '...,:' selects all dimensions of array for variable size array (different tasks have different state dimensions)
+            }
+
         normalizer = LinearNormalizer()
         normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
-        # normalizer['point_cloud'] = SingleFieldLinearNormalizer.create_identity()
+
         return normalizer
 
     def __len__(self) -> int:
@@ -99,20 +109,28 @@ class HitlDataset(BaseDataset):
                 combined = np.concatenate([rotated_centroid_diffs.flatten(), diffs])
                 agent_pos = combined.reshape(1, -1).astype(np.float32)
 
+        if self.use_pointcloud:
+            point_cloud = sample['point_cloud'][:,].astype(np.float32) # (T, 1024, 6)
         
-        point_cloud = sample['point_cloud'][:,].astype(np.float32) # (T, 1024, 6)
+            if self.model_type == "hitl_hgd":
+                if self.simulate_variations:
+                    point_cloud = point_cloud @ R
         
-        if self.model_type == "hitl_hgd":
-            if self.simulate_variations:
-                point_cloud = point_cloud @ R
-        
-        data = {
-            'obs': {
-                'point_cloud': point_cloud, # T, 1024, 6
-                'agent_pos': agent_pos, # T, D_pos
-            },
-            'action': sample['action'].astype(np.float32) # T, D_action
-        }
+        if self.use_pointcloud:
+            data = {
+                'obs': {
+                    'point_cloud': point_cloud, # T, 1024, 6
+                    'agent_pos': agent_pos, # T, D_pos
+                },
+                'action': sample['action'].astype(np.float32) # T, D_action
+            }
+        else:
+            data = {
+                'obs': {
+                    'agent_pos': agent_pos, # T, D_pos
+                },
+                'action': sample['action'].astype(np.float32) # T, D_action
+            }
 
         return data
     

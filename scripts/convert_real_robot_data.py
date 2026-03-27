@@ -161,7 +161,8 @@ for demo_dir in demo_dirs[:train_demo_count]:
             if use_centroids:
                 centroids = list(state_info['centroids'])
 
-                if len(centroids) < 9:
+                print(len(centroids))
+                if len(centroids) < (3*num_prompts):
                     centroids += [0] * ((3*num_prompts)-len(centroids))
 
                 for i in range(1, num_prompts): # skip the first centroid since its the red line and we dont use it for differencess
