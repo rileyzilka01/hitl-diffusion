@@ -12,7 +12,7 @@ shape_meta: &shape_meta
       shape: [11]
       type: low_dimx
   action:
-    shape: [3]
+    shape: [6]
 
 env_runner: null # Null because we dont need any simulation environments since were in the real world
 

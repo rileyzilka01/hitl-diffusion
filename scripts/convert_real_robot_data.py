@@ -52,6 +52,41 @@ def normalize(a, eps=1e-6):
 
     return a_norm
 
+def euler_to_6d(theta_x, theta_y, theta_z, convention='xyz'):
+    # 1. Convert Euler angles to a 3x3 Rotation Matrix
+    # Note: 'xyz' means extrinsic x-y-z. Use 'XYZ' for intrinsic.
+    rot_matrix = R.from_euler(convention, [theta_x, theta_y, theta_z], degrees=False).as_matrix()
+    
+    # 2. Extract the first two columns (X and Y axes of the rotation)
+    col1 = rot_matrix[:, 0]
+    col2 = rot_matrix[:, 1]
+    
+    # 3. Concatenate into a flat 6D vector
+    six_d_rep = np.concatenate([col1, col2])
+    
+    return six_d_rep
+
+def quat_to_6d(quat_xyzw):
+    """
+    Converts a quaternion [x, y, z, w] directly into the 6D continuous representation.
+    
+    Args:
+        quat_xyzw: List or array of 4 elements [x, y, z, w] (from your ROS tf)
+    Returns:
+        six_d: NumPy array of shape (6,)
+    """
+    # 1. Convert Quaternion to a 3x3 Rotation Matrix
+    rot_matrix = R.from_quat(quat_xyzw).as_matrix()
+    
+    # 2. Extract the first two columns (the X and Y axes of the tool frame)
+    col1 = rot_matrix[:, 0]
+    col2 = rot_matrix[:, 1]
+    
+    # 3. Concatenate into a flat 6D vector
+    six_d = np.concatenate([col1, col2])
+    
+    return six_d
+
 if len(sys.argv) < 4:
     print("Usage: python scripts/convert_real_robot_data.py <model> <input_dataset_name> <output_dataset_name>")
     sys.exit(1)
@@ -216,7 +251,8 @@ for demo_dir in demo_dirs[:train_demo_count]:
 
             # ROBOT ACTION
             ee_orientation = state_info['ee_orientation']
-            action = ee_orientation # for shared control
+            # action = euler_to_6d(ee_orientation[0], ee_orientation[1], ee_orientation[2]) # for shared control, convert to so3 manifold space
+            action = quat_to_6d(np.array([ee_orientation[0], ee_orientation[1], ee_orientation[2], ee_orientation[3]])) # for shared control, convert to so3 manifold space
             # ROBOT ACTION
 
             action_arrays.append(action)
