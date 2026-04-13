@@ -77,9 +77,8 @@ demo_dirs = [os.path.join(expert_data_path, str(d)) for d in dirs if os.path.isd
 
 # storage
 total_count = 0
-# img_arrays = []
+img_arrays = []
 point_cloud_arrays = []
-# depth_arrays = []
 state_arrays = []
 action_arrays = []
 episode_ends_arrays = []
@@ -92,6 +91,7 @@ train_demo_count = 1 #how many demonstrations to use from total, just takes firs
 
 use_pointcloud = True # use pointcloud in conditioning or not
 center_point_cloud = True
+use_image = False
 
 if model == "hitl_hgd":
     use_centroids = True
@@ -161,7 +161,6 @@ for demo_dir in demo_dirs[:train_demo_count]:
             if use_centroids:
                 centroids = list(state_info['centroids'])
 
-                print(len(centroids))
                 if len(centroids) < (3*num_prompts):
                     centroids += [0] * ((3*num_prompts)-len(centroids))
 
@@ -210,16 +209,23 @@ for demo_dir in demo_dirs[:train_demo_count]:
                     obs_pointcloud = obs_pointcloud - centroid
             # POINTCLOUD
 
+            # IMAGE
+            if use_image:
+                obs_image = np.load(os.path.join(timestep_dir, 'img.npy'), allow_pickle=True)
+            # IMAGE
+
             # ROBOT ACTION
             ee_orientation = state_info['ee_orientation']
             action = ee_orientation # for shared control
             # ROBOT ACTION
 
-            # img_arrays.append(obs_image)
             action_arrays.append(action)
+
             if use_pointcloud:
                 point_cloud_arrays.append(obs_pointcloud)
-            # depth_arrays.append(obs_depth)
+            if use_image:
+                img_arrays.append(obs_image)
+
             state_arrays.append(robot_state)
 
             total_count += 1
@@ -235,43 +241,46 @@ zarr_root = zarr.group(save_data_path)
 zarr_data = zarr_root.create_group('data')
 zarr_meta = zarr_root.create_group('meta')
 
-# img_arrays = np.stack(img_arrays, axis=0)
-# if img_arrays.shape[1] == 3: # make channel last
-    # img_arrays = np.transpose(img_arrays, (0,2,3,1))
+if use_image:
+    img_arrays = np.stack(img_arrays, axis=0)
+    if img_arrays.shape[1] == 3: # make channel last
+        img_arrays = np.transpose(img_arrays, (0,2,3,1))
 if use_pointcloud:
     point_cloud_arrays = np.stack(point_cloud_arrays, axis=0)
-# depth_arrays = np.stack(depth_arrays, axis=0)
+
 action_arrays = np.stack(action_arrays, axis=0)
 state_arrays = np.stack(state_arrays, axis=0)
 episode_ends_arrays = np.array(episode_ends_arrays)
 
 compressor = zarr.Blosc(cname='zstd', clevel=3, shuffle=1)
-# img_chunk_size = (100, img_arrays.shape[1], img_arrays.shape[2], img_arrays.shape[3])
+if use_image:
+    img_chunk_size = (100, img_arrays.shape[1], img_arrays.shape[2], img_arrays.shape[3])
 if use_pointcloud:
     point_cloud_chunk_size = (100, point_cloud_arrays.shape[1], point_cloud_arrays.shape[2])
-# depth_chunk_size = (100, depth_arrays.shape[1], depth_arrays.shape[2])
+
 if len(action_arrays.shape) == 2:
     action_chunk_size = (100, action_arrays.shape[1])
 elif len(action_arrays.shape) == 3:
     action_chunk_size = (100, action_arrays.shape[1], action_arrays.shape[2])
 else:
     raise NotImplementedError
-# zarr_data.create_dataset('img', data=img_arrays, chunks=img_chunk_size, dtype='uint8', overwrite=True, compressor=compressor)
+
+if use_image:
+    zarr_data.create_dataset('img', data=img_arrays, chunks=img_chunk_size, dtype='uint8', overwrite=True, compressor=compressor)
 if use_pointcloud:
     zarr_data.create_dataset('point_cloud', data=point_cloud_arrays, chunks=point_cloud_chunk_size, dtype='float64', overwrite=True, compressor=compressor)
-# zarr_data.create_dataset('depth', data=depth_arrays, chunks=depth_chunk_size, dtype='float64', overwrite=True, compressor=compressor)
 zarr_data.create_dataset('action', data=action_arrays, chunks=action_chunk_size, dtype='float32', overwrite=True, compressor=compressor)
 zarr_data.create_dataset('state', data=state_arrays, chunks=(100, state_arrays.shape[1]), dtype='float32', overwrite=True, compressor=compressor)
 zarr_meta.create_dataset('episode_ends', data=episode_ends_arrays, chunks=(100,), dtype='int64', overwrite=True, compressor=compressor)
 
 # print shape
-# cprint(f'img shape: {img_arrays.shape}, range: [{np.min(img_arrays)}, {np.max(img_arrays)}]', 'green')
+if use_image:
+    cprint(f'img shape: {img_arrays.shape}, range: [{np.min(img_arrays)}, {np.max(img_arrays)}]', 'green')
 if use_pointcloud:
     cprint(f'point_cloud shape: {point_cloud_arrays.shape}, range: [{np.min(point_cloud_arrays)}, {np.max(point_cloud_arrays)}]', 'green')
-# cprint(f'depth shape: {depth_arrays.shape}, range: [{np.min(depth_arrays)}, {np.max(depth_arrays)}]', 'green')
 cprint(f'action shape: {action_arrays.shape}, range: [{np.min(action_arrays)}, {np.max(action_arrays)}]', 'green')
 cprint(f'state shape: {state_arrays.shape}, range: [{np.min(state_arrays)}, {np.max(state_arrays)}]', 'green')
 cprint(f'episode_ends shape: {episode_ends_arrays.shape}, range: [{np.min(episode_ends_arrays)}, {np.max(episode_ends_arrays)}]', 'green')
-# cprint(f'total_count: {total_count}', 'green')
+cprint(f'total_count: {total_count}', 'green')
 cprint(f'Saved zarr file to {save_data_path}', 'green')
 
