@@ -251,8 +251,10 @@ for demo_dir in demo_dirs[:train_demo_count]:
 
             # ROBOT ACTION
             ee_orientation = state_info['ee_orientation']
-            # action = euler_to_6d(ee_orientation[0], ee_orientation[1], ee_orientation[2]) # for shared control, convert to so3 manifold space
-            action = quat_to_6d(np.array([ee_orientation[0], ee_orientation[1], ee_orientation[2], ee_orientation[3]])) # for shared control, convert to so3 manifold space
+            if model == "hitl_hgd":
+                action = quat_to_6d(np.array([ee_orientation[0], ee_orientation[1], ee_orientation[2], ee_orientation[3]])) # convert to so3 manifold space
+            else:
+                action = np.array([ee_orientation[0], ee_orientation[1], ee_orientation[2]])
             # ROBOT ACTION
 
             action_arrays.append(action)
