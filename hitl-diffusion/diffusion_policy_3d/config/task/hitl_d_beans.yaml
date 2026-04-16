@@ -25,4 +25,4 @@ dataset:
   seed: 42
   val_ratio: 0.02
   max_train_episodes: 90
-  model_type: "hitl_hgd"
+  model_type: "hitl_d"
