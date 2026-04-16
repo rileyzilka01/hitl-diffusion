@@ -1,6 +1,6 @@
-name: realdex_roll
+name: hitl_hgd_boxes
 
-task_name: roll
+task_name: boxes
 
 shape_meta: &shape_meta
   # acceptable types: rgb, low_dim
@@ -9,19 +9,20 @@ shape_meta: &shape_meta
       shape: [1024, 3]
       type: point_cloud
     agent_pos:
-      shape: [22]
+      shape: [11]
       type: low_dimx
   action:
-    shape: [22]
+    shape: [6]
 
-env_runner: null
+env_runner: null # Null because we dont need any simulation environments since were in the real world
 
 dataset:
-  _target_: diffusion_policy_3d.dataset.realdex_dataset.RealDexDataset
-  zarr_path: data/realdex_roll.zarr
+  _target_: diffusion_policy_3d.dataset.hitl_dataset.HitlDataset
+  zarr_path: data/hitl_hgd_boxes.zarr
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1'}
   pad_after: ${eval:'${n_action_steps}-1'}
   seed: 42
   val_ratio: 0.02
   max_train_episodes: 90
+  model_type: "hitl_hgd"

@@ -1,31 +1,28 @@
-name: hitl_tennis_ball
+name: hitl_hgd_recycling
 
-task_name: tennis_ball
-
-num_prompts: 3
+task_name: recycling
 
 shape_meta: &shape_meta
   # acceptable types: rgb, low_dim
   obs:
     point_cloud:
-      shape: [2048, 3]
+      shape: [1024, 3]
       type: point_cloud
     agent_pos:
-      shape: [9] # size of the robot state array (9 for central differences)
+      shape: [11]
       type: low_dimx
   action:
-    # shape: [4] # size of the action array (4 for ee_orientation in qx, qy, qz, qw)
-    shape: [3] # size of the action array (4 for ee_orientation in yaw pitch roll)
+    shape: [6]
 
 env_runner: null # Null because we dont need any simulation environments since were in the real world
 
 dataset:
   _target_: diffusion_policy_3d.dataset.hitl_dataset.HitlDataset
-  zarr_path: data/hitl_tennis_ball.zarr
+  zarr_path: data/hitl_hgd_recycling.zarr
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1'}
   pad_after: ${eval:'${n_action_steps}-1'}
   seed: 42
   val_ratio: 0.02
   max_train_episodes: 90
-  simulate_variations: true
+  model_type: "hitl_hgd"

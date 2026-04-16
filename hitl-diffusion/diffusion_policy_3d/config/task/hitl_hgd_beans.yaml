@@ -1,8 +1,6 @@
-name: hitl_tennis_ball
+name: hitl_hgd_beans
 
-task_name: tennis_ball
-
-num_prompts: 3
+task_name: beans
 
 shape_meta: &shape_meta
   # acceptable types: rgb, low_dim
@@ -11,7 +9,7 @@ shape_meta: &shape_meta
       shape: [1024, 3]
       type: point_cloud
     agent_pos:
-      shape: [11] 
+      shape: [11]
       type: low_dimx
   action:
     shape: [6]
@@ -20,11 +18,11 @@ env_runner: null # Null because we dont need any simulation environments since w
 
 dataset:
   _target_: diffusion_policy_3d.dataset.hitl_dataset.HitlDataset
-  zarr_path: data/hitl_tennis_ball.zarr
+  zarr_path: data/hitl_hgd_beans.zarr
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1'}
   pad_after: ${eval:'${n_action_steps}-1'}
   seed: 42
   val_ratio: 0.02
   max_train_episodes: 90
-  simulate_variations: true
+  model_type: "hitl_hgd"
