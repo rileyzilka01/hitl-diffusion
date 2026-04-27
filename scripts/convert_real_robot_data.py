@@ -119,9 +119,9 @@ action_arrays = []
 episode_ends_arrays = []
 
 shared = True
-num_prompts = 4
+num_prompts = 5
 
-train_demo_count = 1 #how many demonstrations to use from total, just takes first x
+train_demo_count = 10 #how many demonstrations to use from total, just takes first x
 # train_demo_count = len(demo_dirs)+1 #default
 
 use_pointcloud = True # use pointcloud in conditioning or not

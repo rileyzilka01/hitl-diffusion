@@ -9,7 +9,7 @@ shape_meta: &shape_meta
       shape: [1024, 3]
       type: point_cloud
     agent_pos:
-      shape: [11]
+      shape: [11] # 1 centroid difference and 1 unit vec
       type: low_dimx
   action:
     shape: [6]
@@ -26,3 +26,4 @@ dataset:
   val_ratio: 0.02
   max_train_episodes: 90
   model_type: "hitl_hgd"
+  num_prompts: 3

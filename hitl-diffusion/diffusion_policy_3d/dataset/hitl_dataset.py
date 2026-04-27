@@ -100,11 +100,14 @@ class HitlDataset(BaseDataset):
 
                 R = self.rotation_matrix(rx, ry, rz).T
 
-                centroid_diffrences = agent_pos[0][:3*self.num_prompts]
-                diffs = agent_pos[0][3*self.num_prompts:]
+                num_centroids = 0
+                for i in range(self.num_prompts):
+                    num_centroids += i
+                centroid_diffrences = agent_pos[0][:3*num_centroids]
+                diffs = agent_pos[0][3*num_centroids:]
 
                 temp = np.asarray(centroid_diffrences).reshape(-1, 3) @ R
-                rotated_centroid_diffs = temp.reshape(1, 9).astype(np.float32)
+                rotated_centroid_diffs = temp.reshape(1, num_centroids*3).astype(np.float32)
 
                 combined = np.concatenate([rotated_centroid_diffs.flatten(), diffs])
                 agent_pos = combined.reshape(1, -1).astype(np.float32)

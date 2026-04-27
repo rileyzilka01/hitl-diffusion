@@ -1,7 +1,7 @@
 # Template:
-# bash scripts/train_policy.sh algorithm task some_number seed gpu
+# bash scripts/train_policy.sh algorithm task dataset some_number seed gpu
 # Examples:
-# bash scripts/train_policy.sh hitl hitl_block 0001 0 0
+# bash scripts/train_policy.sh hitl hitl_block hitl_block_1 0001 0 0
 
 
 

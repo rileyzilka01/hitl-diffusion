@@ -26,3 +26,4 @@ dataset:
   val_ratio: 0.02
   max_train_episodes: 90
   model_type: "hitl_hgd"
+  num_prompts: 3

@@ -1,7 +1,7 @@
 defaults:
   - task: hitl_block
 
-name: train_hitl
+name: train_hitl_hgd
 
 task_name: ${task.name}
 shape_meta: ${task.shape_meta}

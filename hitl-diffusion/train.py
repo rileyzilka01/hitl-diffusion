@@ -515,6 +515,7 @@ class TrainHITLWorkspace:
         'diffusion_policy_3d', 'config'))
 )
 def main(cfg):
+    print(cfg)
     workspace = TrainHITLWorkspace(cfg)
     workspace.run()
 
