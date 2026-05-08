@@ -26,7 +26,7 @@ class HitlDataset(BaseDataset):
             ):
         super().__init__()
         self.task_name = task_name
-        self.simulate_variations = simulate_variations
+        self.simulate_variations = False
         self.num_prompts=num_prompts
         self.model_type = model_type
         self.use_pointcloud = use_pointcloud
